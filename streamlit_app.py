@@ -1,12 +1,14 @@
 ﻿from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+import datetime as dt
+from typing import Any, Iterable
 
 import pandas as pd
 import streamlit as st
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from streamlit.components.v1 import html as components_html
+from zoneinfo import ZoneInfo
 
 from modules.nowgoal_client import (
     collect_handicap_options,
@@ -26,6 +28,8 @@ PAGE_TITLE = "Analizador Profesional de Partidos"
 PAGE_ICON = "AP"
 MAX_MATCHES = 50
 DEFAULT_MATCH_COUNT = 20
+
+PREVIEW_TZ = ZoneInfo("Europe/Madrid")
 
 
 st.set_page_config(page_title=PAGE_TITLE, page_icon=PAGE_ICON, layout="wide")
@@ -154,120 +158,379 @@ def _render_stats_rows(rows: list[dict[str, Any]]) -> None:
     st.table(df)
 
 
-def _render_recent_indirect(preview: dict[str, Any]) -> None:
-    indirect = preview.get("recent_indirect") or {}
-    if not indirect:
+
+PREVIEW_STYLE = """
+<style>
+.preview-root { display: flex; flex-direction: column; gap: 1.2rem; }
+.preview-card { background: #ffffff; border-radius: 16px; padding: 1.25rem 1.5rem; box-shadow: 0 12px 26px rgba(15, 23, 42, 0.08); border: 1px solid rgba(148, 163, 184, 0.2); }
+.preview-card.main-card { background: linear-gradient(135deg,#1e3a8a 0%,#2563eb 100%); color: #f8fafc; }
+.preview-header { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; font-size: 1.05rem; font-weight: 600; }
+.preview-header .home-name, .preview-header .away-name { flex: 1; }
+.preview-header .vs { font-size: 0.95rem; opacity: 0.85; }
+.preview-body { margin-top: 0.75rem; display: flex; flex-direction: column; gap: 0.35rem; }
+.preview-line { margin: 0; font-size: 0.92rem; }
+.preview-subtitle { margin: 0 0 0.6rem 0; font-size: 1rem; font-weight: 600; }
+.preview-card-grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
+.preview-card.home-card { border-top: 4px solid #2563eb; }
+.preview-card.away-card { border-top: 4px solid #f97316; }
+.preview-card.neutral-card { border-top: 4px solid #16a34a; }
+.preview-card.info-card { background: #f8fafc; border: 1px solid rgba(148, 163, 184, 0.35); }
+.preview-score { font-size: 1.6rem; font-weight: 600; margin-bottom: 0.35rem; }
+.preview-match-line { margin: 0; font-weight: 500; }
+.preview-line.text-muted { color: #64748b; }
+.preview-stat-table { width: 100%; border-collapse: collapse; margin-top: 0.5rem; font-size: 0.85rem; }
+.preview-stat-table td { padding: 0.25rem 0.45rem; border-bottom: 1px solid rgba(226, 232, 240, 0.6); }
+.stat-home { font-weight: 600; color: #1d4ed8; text-align: left; }
+.stat-away { font-weight: 600; color: #f97316; text-align: right; }
+.stat-label { text-align: center; color: #475569; font-weight: 500; }
+.preview-columns { display: grid; gap: 1rem; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); align-items: start; }
+.preview-columns.single { grid-template-columns: minmax(0, 1fr); }
+.preview-columns .col-left, .preview-columns .col-right { display: flex; flex-direction: column; gap: 1rem; }
+.preview-alert { padding: 0.85rem 1rem; border-radius: 12px; font-size: 0.9rem; }
+.preview-alert.info { background: rgba(59, 130, 246, 0.12); color: #1d4ed8; border: 1px solid rgba(59, 130, 246, 0.2); }
+.cover-badge { display: inline-flex; align-items: center; padding: 0.2rem 0.6rem; border-radius: 999px; font-size: 0.78rem; font-weight: 600; margin-left: 0.3rem; }
+.cover-positive { background: rgba(34, 197, 94, 0.18); color: #15803d; }
+.cover-negative { background: rgba(248, 113, 113, 0.18); color: #b91c1c; }
+.cover-neutral { background: rgba(148, 163, 184, 0.25); color: #1f2937; }
+.cover-unknown { background: rgba(248, 250, 252, 0.8); color: #334155; border: 1px dashed rgba(226, 232, 240, 0.8); }
+.preview-card.info-card p { margin-bottom: 0.35rem; }
+.form-grid { display: grid; gap: 0.4rem; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+.form-item { display: flex; flex-direction: column; background: #ffffff; border-radius: 12px; padding: 0.65rem 0.75rem; border: 1px solid rgba(148, 163, 184, 0.2); box-shadow: 0 6px 15px rgba(15, 23, 42, 0.04); }
+.form-label { font-weight: 600; color: #0f172a; }
+.form-value { font-size: 0.88rem; color: #475569; }
+.preview-indirect-table { width: 100%; border-collapse: collapse; margin-top: 0.6rem; font-size: 0.85rem; }
+.preview-indirect-table th, .preview-indirect-table td { padding: 0.35rem 0.45rem; border-bottom: 1px solid rgba(203, 213, 225, 0.6); text-align: left; }
+.preview-indirect-table th { background: rgba(15, 23, 42, 0.04); font-weight: 600; }
+</style>
+"""
+
+
+def _format_cover_status_html(status: str | None) -> str:
+    if not status:
+        return ""
+    normalized = str(status).strip()
+    if not normalized:
+        return ""
+    upper = normalized.upper()
+    mapping = {
+        "CUBIERTO": ("cover-positive", "CUBIERTO"),
+        "NO CUBIERTO": ("cover-negative", "NO CUBIERTO"),
+        "NULO": ("cover-neutral", "NULO"),
+        "PUSH": ("cover-neutral", "PUSH"),
+    }
+    css_class, label = mapping.get(upper, ("cover-unknown", normalized.title()))
+    return f"<span class='cover-badge {css_class}'>{label}</span>"
+
+
+def _render_cover_line_html(status: str | None) -> str:
+    badge = _format_cover_status_html(status)
+    if not badge:
+        return ""
+    return f"<p class='preview-line'><strong>Estado:</strong> {badge}</p>"
+
+
+def _render_stats_rows_html(rows: Iterable[dict[str, Any]] | None) -> str:
+    if not rows:
+        return ""
+    html_rows: list[str] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        label = row.get("label")
+        home = row.get("home")
+        away = row.get("away")
+        home_html = str(home) if home not in (None, "") else "-"
+        label_html = str(label) if label not in (None, "") else "-"
+        away_html = str(away) if away not in (None, "") else "-"
+        html_rows.append(
+            f"<tr><td class='stat-home'>{home_html}</td><td class='stat-label'>{label_html}</td><td class='stat-away'>{away_html}</td></tr>"
+        )
+    if not html_rows:
+        return ""
+    return "<table class='preview-stat-table'><tbody>" + "".join(html_rows) + "</tbody></table>"
+
+
+def _short_date(value: Any) -> str:
+    if value in (None, ""):
+        return "-"
+    text_value = str(value).strip()
+    if not text_value:
+        return "-"
+    if "T" in text_value:
+        text_value = text_value.split("T", 1)[0]
+    if len(text_value) > 10:
+        return text_value[:10]
+    return text_value
+
+
+def _humanize_timestamp(value: str | None) -> str:
+    if not value:
+        return ""
+    try:
+        parsed = dt.datetime.fromisoformat(value.replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=dt.timezone.utc)
+        local = parsed.astimezone(PREVIEW_TZ)
+        return local.strftime("%d/%m/%Y %H:%M")
+    except Exception:
+        return str(value)
+
+
+def _format_match_datetime(preview: dict[str, Any]) -> str:
+    dt_value = preview.get("match_datetime")
+    if isinstance(dt_value, str):
+        try:
+            parsed = dt.datetime.fromisoformat(dt_value.replace("Z", "+00:00"))
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=dt.timezone.utc)
+            local = parsed.astimezone(PREVIEW_TZ)
+            return local.strftime("%d/%m/%Y %H:%M")
+        except ValueError:
+            pass
+    date = preview.get("match_date")
+    time = preview.get("match_time")
+    if date and time:
+        return f"{date} {time}"
+    if date:
+        return str(date)
+    return "-"
+
+
+def _render_recent_card_block(title: str, card: dict[str, Any] | None, variant: str) -> str:
+    if not card:
+        return ""
+    score_raw = card.get("score") or card.get("score_line") or "-"
+    score = str(score_raw).replace(":", " - ")
+    home_team = card.get("home") or card.get("home_team") or "-"
+    away_team = card.get("away") or card.get("away_team") or "-"
+    match_line = f"<p class='preview-match-line'><span class='home-name'>{home_team}</span> vs <span class='away-name'>{away_team}</span></p>"
+    date_html = _short_date(card.get("date"))
+    odds = card.get("ah")
+    odds_html = ""
+    if odds not in (None, ""):
+        odds_html = f"<p class='preview-line'><strong>AH:</strong> <span class='ah-value'>{odds}</span></p>"
+    cover_html = _render_cover_line_html(card.get("cover_status"))
+    stats_html = _render_stats_rows_html(card.get("stats_rows"))
+    analysis = card.get("analysis")
+    analysis_html = f"<p class='preview-line'><strong>Insight:</strong> {analysis}</p>" if analysis else ""
+    return (
+        f"<div class='preview-card {variant}'>"
+        f"<div class='preview-card-header'>{title}</div>"
+        "<div class='preview-card-body'>"
+        f"<div class='preview-score'>{score}</div>"
+        f"{match_line}"
+        f"<p class='preview-line text-muted'>{date_html}</p>"
+        f"{odds_html}"
+        f"{cover_html}"
+        f"{stats_html}"
+        f"{analysis_html}"
+        "</div></div>"
+    )
+
+
+def _build_market_summary_block(preview: dict[str, Any]) -> str:
+    home = preview.get("home_name") or preview.get("home_team") or "-"
+    away = preview.get("away_name") or preview.get("away_team") or "-"
+    handicap = preview.get("handicap") or {}
+    ah_line = handicap.get("ah_line") or "-"
+    favorite = handicap.get("favorite") or "Sin favorito"
+    cover = _render_cover_line_html(handicap.get("cover_on_last_h2h"))
+    kickoff = _format_match_datetime(preview)
+    content = [
+        "<div class='preview-card main-card'>",
+        f"<div class='preview-header'><span class='home-name'>{home}</span><span class='vs'>vs</span><span class='away-name'>{away}</span></div>",
+        "<div class='preview-body'>",
+        f"<p class='preview-line'><strong>Fecha / hora (España):</strong> {kickoff}</p>",
+        f"<p class='preview-line'><strong>Handicap actual:</strong> <span class='ah-value'>{ah_line}</span></p>",
+        f"<p class='preview-line'><strong>Favorito:</strong> {favorite}</p>",
+    ]
+    if cover:
+        content.append(cover)
+    content.append("</div></div>")
+    return "".join(content)
+
+
+def _build_recent_cards_section(preview: dict[str, Any]) -> str:
+    data = preview.get("recent_indirect") or {}
+    if not data and preview.get("recent_indirect_full"):
+        rif = preview.get("recent_indirect_full") or {}
+        data = {
+            "last_home": rif.get("last_home"),
+            "last_away": rif.get("last_away"),
+            "h2h_col3": rif.get("h2h_col3"),
+        }
+    if not isinstance(data, dict):
+        return ""
+    home_label = preview.get("home_name") or preview.get("home_team") or "Equipo local"
+    away_label = preview.get("away_name") or preview.get("away_team") or "Equipo visitante"
+    cards: list[str] = []
+    if data.get("last_home"):
+        cards.append(_render_recent_card_block(f"Ultimo {home_label} (Casa)", data.get("last_home"), "home-card"))
+    if data.get("last_away"):
+        cards.append(_render_recent_card_block(f"Ultimo {away_label} (Fuera)", data.get("last_away"), "away-card"))
+    if data.get("h2h_col3"):
+        cards.append(_render_recent_card_block("H2H rivales (Col3)", data.get("h2h_col3"), "neutral-card"))
+    if not cards:
+        return ""
+    return "<div class='preview-card-grid'>" + "".join(cards) + "</div>"
+
+
+def _build_recent_form_block(preview: dict[str, Any]) -> str:
+    rf = preview.get("recent_form") or {}
+    home_form = rf.get("home") or {}
+    away_form = rf.get("away") or {}
+    if not home_form and not away_form:
+        return ""
+    home_label = preview.get("home_name") or preview.get("home_team") or "Equipo local"
+    away_label = preview.get("away_name") or preview.get("away_team") or "Equipo visitante"
+    items: list[str] = []
+    if home_form:
+        wins = home_form.get("wins", 0)
+        total = home_form.get("total", 0)
+        items.append(f"<div class='form-item'><span class='form-label'>{home_label}</span><span class='form-value'>{wins} victorias en {total} partidos recientes</span></div>")
+    if away_form:
+        wins = away_form.get("wins", 0)
+        total = away_form.get("total", 0)
+        items.append(f"<div class='form-item'><span class='form-label'>{away_label}</span><span class='form-value'>{wins} victorias en {total} partidos recientes</span></div>")
+    if not items:
+        return ""
+    return "<div class='preview-card info-card'><h4 class='preview-subtitle'>Rendimiento reciente (ultimo 8)</h4><div class='form-grid'>" + "".join(items) + "</div></div>"
+
+
+def _build_h2h_stats_block(preview: dict[str, Any]) -> str:
+    h2h = preview.get("h2h_stats") or {}
+    if not isinstance(h2h, dict):
+        return ""
+    total = h2h.get("home_wins", 0) + h2h.get("away_wins", 0) + h2h.get("draws", 0)
+    if total == 0:
+        return ""
+    home_label = preview.get("home_name") or preview.get("home_team") or "Local"
+    away_label = preview.get("away_name") or preview.get("away_team") or "Visitante"
+    return (
+        "<div class='preview-card info-card'>"
+        "<h4 class='preview-subtitle'>Historial directo (ultimos 8)</h4>"
+        f"<p class='preview-line'><strong>Victorias {home_label}:</strong> {h2h.get('home_wins', 0)}</p>"
+        f"<p class='preview-line'><strong>Victorias {away_label}:</strong> {h2h.get('away_wins', 0)}</p>"
+        f"<p class='preview-line'><strong>Empates:</strong> {h2h.get('draws', 0)}</p>"
+        "</div>"
+    )
+
+
+def _build_dangerous_attacks_block(preview: dict[str, Any]) -> str:
+    favorite = preview.get("favorite_dangerous_attacks")
+    ataques = preview.get("dangerous_attacks") or preview.get("ataques_peligrosos") or {}
+    snippets: list[str] = []
+    if isinstance(favorite, dict) and favorite.get("name"):
+        calidad = "muy superior" if favorite.get("very_superior") else "con ligera ventaja"
+        own = favorite.get("own", "-")
+        rival = favorite.get("rival", "-")
+        snippets.append(f"<p class='preview-line'><strong>{favorite.get('name')}:</strong> {calidad} ({own} vs {rival}).</p>")
+    if isinstance(ataques, dict):
+        for key in ("team1", "team2"):
+            data = ataques.get(key)
+            if not isinstance(data, dict) or not data.get("name"):
+                continue
+            calidad = "muy superior" if data.get("very_superior") else "equilibrados"
+            own = data.get("own", "-")
+            rival = data.get("rival", "-")
+            snippets.append(f"<p class='preview-line'><strong>{data.get('name')}:</strong> {calidad} ({own} vs {rival}).</p>")
+    if not snippets:
+        return ""
+    return "<div class='preview-card info-card'><h4 class='preview-subtitle'>Ataques peligrosos</h4>" + "".join(snippets) + "</div>"
+
+
+def _build_h2h_indirect_block(preview: dict[str, Any]) -> str:
+    h2h_indirect = preview.get("h2h_indirect") or {}
+    if not isinstance(h2h_indirect, dict):
+        return ""
+    samples = h2h_indirect.get("samples") or []
+    home_better = h2h_indirect.get("home_better") or 0
+    away_better = h2h_indirect.get("away_better") or 0
+    draws = h2h_indirect.get("draws") or 0
+    summary = f"<p class='preview-line'><strong>Comparativa rivales comunes:</strong> Local mejor en {home_better}, visitante mejor en {away_better}, empate en {draws}.</p>"
+    rows: list[str] = []
+    for sample in samples[:5]:
+        if not isinstance(sample, dict):
+            continue
+        rival = str(sample.get("rival", "-")).title()
+        home_margin = sample.get("home_margin", "-")
+        away_margin = sample.get("away_margin", "-")
+        verdict = str(sample.get("verdict", "-")).title()
+        rows.append(f"<tr><td>{rival}</td><td>{home_margin}</td><td>{away_margin}</td><td>{verdict}</td></tr>")
+    table_html = ""
+    if rows:
+        table_html = "<table class='preview-indirect-table'><thead><tr><th>Rival</th><th>Margen local</th><th>Margen visitante</th><th>Favor</th></tr></thead><tbody>" + "".join(rows) + "</tbody></table>"
+    return "<div class='preview-card neutral-card'><h4 class='preview-subtitle'>Rivales comunes</h4>" + summary + table_html + "</div>"
+
+
+def _build_simplified_html_block(preview: dict[str, Any]) -> str:
+    html = preview.get("simplified_html") or preview.get("analisis_simplificado_html")
+    if html:
+        return "<div class='preview-card info-card'>" + html + "</div>"
+    return ""
+
+
+def _build_preview_columns(preview: dict[str, Any]) -> str:
+    left_parts = [
+        _build_recent_form_block(preview),
+        _build_recent_cards_section(preview),
+        _build_h2h_indirect_block(preview),
+        _build_dangerous_attacks_block(preview),
+    ]
+    left_html = "".join(part for part in left_parts if part)
+    right_parts = [
+        _build_h2h_stats_block(preview),
+        _build_simplified_html_block(preview),
+    ]
+    right_html = "".join(part for part in right_parts if part)
+    if not left_html and not right_html:
+        return ""
+    if not right_html:
+        return f"<div class='preview-columns single'><div class='col-left'>{left_html}</div></div>"
+    if not left_html:
+        return f"<div class='preview-columns single'><div class='col-left'>{right_html}</div></div>"
+    return f"<div class='preview-columns'><div class='col-left'>{left_html}</div><div class='col-right'>{right_html}</div></div>"
+
+
+def _build_cache_notice(preview: dict[str, Any]) -> str:
+    meta = None
+    if isinstance(preview.get("_cached_preview"), dict):
+        meta = preview.get("_cached_preview")
+    elif isinstance(preview.get("_cached_analysis"), dict):
+        meta = preview.get("_cached_analysis")
+    if meta:
+        label = meta.get("source") or "almacén"
+        stored = _humanize_timestamp(meta.get("stored_at"))
+        return f"<div class='preview-alert info'>Datos recuperados del almacén ({label}) · {stored}</div>"
+    source = preview.get("_preview_source")
+    timestamp = preview.get("_preview_timestamp")
+    if source and timestamp:
+        stored = _humanize_timestamp(timestamp)
+        return f"<div class='preview-alert info'>Datos generados en vivo ({source}) · {stored}</div>"
+    return ""
+
+
+def _render_preview(preview: dict[str, Any]) -> None:
+    if not isinstance(preview, dict) or not preview:
+        st.info("No hay datos disponibles para esta vista previa.")
         return
+    st.markdown(PREVIEW_STYLE, unsafe_allow_html=True)
+    sections: list[str] = []
+    notice = _build_cache_notice(preview)
+    if notice:
+        sections.append(notice)
+    summary = _build_market_summary_block(preview)
+    if summary:
+        sections.append(summary)
+    columns = _build_preview_columns(preview)
+    if columns:
+        sections.append(columns)
+    html_body = "".join(sections)
+    if not html_body:
+        st.info("No hay información detallada disponible para esta vista previa.")
+        return
+    st.markdown(f"<div class='preview-root'>{html_body}</div>", unsafe_allow_html=True)
 
-    st.markdown("#### Referencias indirectas recientes")
-
-    col_home, col_away, col_h2h = st.columns(3)
-
-    last_home = indirect.get("last_home") or {}
-    with col_home:
-        st.markdown("**Ultimo partido del local**")
-        if last_home:
-            st.markdown(f"{last_home.get('home', '-')} vs {last_home.get('away', '-')}")
-            st.markdown(f"Marcador: {last_home.get('score', '-')}")
-            st.markdown(f"AH: {last_home.get('ah', '-')}")
-            _render_stats_rows(last_home.get("stats_rows") or [])
-        else:
-            st.info("Sin datos del local en liga.")
-
-    last_away = indirect.get("last_away") or {}
-    with col_away:
-        st.markdown("**Ultimo partido del visitante**")
-        if last_away:
-            st.markdown(f"{last_away.get('home', '-')} vs {last_away.get('away', '-')}")
-            st.markdown(f"Marcador: {last_away.get('score', '-')}")
-            st.markdown(f"AH: {last_away.get('ah', '-')}")
-            _render_stats_rows(last_away.get("stats_rows") or [])
-        else:
-            st.info("Sin datos del visitante en liga.")
-
-    h2h_col3 = indirect.get("h2h_col3") or {}
-    with col_h2h:
-        st.markdown("**H2H rivales (columna 3)**")
-        if h2h_col3:
-            st.markdown(f"Marcador: {h2h_col3.get('score_line', '-')}")
-            st.markdown(f"AH: {h2h_col3.get('ah', '-')}")
-            st.markdown(f"Cover: {h2h_col3.get('cover', '-')}")
-        else:
-            st.info("Sin datos de rivales comunes recientes.")
-
-
-
-
-def _render_storage_entry(entry: dict[str, Any], payload_type: str) -> None:
-    match_id = str(entry.get("match_id", ""))
-    stored_at = entry.get("stored_at") or "Sin fecha"
-    source = entry.get("source") or "manual"
-    payload = entry.get("payload") or {}
-    header = f"{payload_type.title()} - {match_id or '(sin ID)'} - {stored_at}"
-
-    with st.expander(header):
-        st.write(f"Fuente: {source}")
-        st.write(f"Guardado: {stored_at}")
-        if payload:
-            if payload_type == "preview":
-                _render_preview(payload)
-            st.json(payload)
-        else:
-            st.info("No hay datos disponibles para esta entrada.")
-
-        col_view, col_delete = st.columns(2)
-
-        if payload_type == "analysis" and payload:
-            if col_view.button(
-                f"Abrir analisis {match_id}",
-                key=f"storage_open_analysis_{match_id}_{stored_at}",
-            ):
-                analysis_cache: dict[str, Any] = st.session_state["analysis_cache"]
-                analysis_cache[match_id] = payload
-                _set_analysis_query(match_id, origin="storage")
-
-        elif payload_type == "preview" and payload:
-            if col_view.button(
-                f"Cargar preview {match_id}",
-                key=f"storage_open_preview_{match_id}_{stored_at}",
-            ):
-                cache = st.session_state["preview_cache"]
-                cache[("storage", match_id)] = payload
-                st.success("Preview disponible en la cache local para su consulta inmediata.")
-
-        if col_delete.button(
-            f"Eliminar {payload_type}",
-            key=f"storage_delete_{payload_type}_{match_id}_{stored_at}",
-        ):
-            if delete_preview(match_id, payload_type=payload_type):
-                st.success("Entrada eliminada correctamente.")
-                st.rerun()
-            else:
-                st.error("No se pudo eliminar la entrada.")
-
-
-def _render_storage_manager() -> None:
-    st.header("Almacen de estudios")
-    storage_file = Path(__file__).resolve().parent / "preview_store.json"
-    st.caption(f"Datos persistidos en: {storage_file}")
-
-    tabs = st.tabs(["Vistas previas", "Analisis guardados"])
-    preview_entries = list_previews(payload_type="preview")
-    analysis_entries = list_previews(payload_type="analysis")
-
-    with tabs[0]:
-        if not preview_entries:
-            st.info("No hay vistas previas guardadas.")
-        else:
-            for entry in preview_entries:
-                _render_storage_entry(entry, "preview")
-
-    with tabs[1]:
-        if not analysis_entries:
-            st.info("No hay analisis guardados.")
-        else:
-            for entry in analysis_entries:
-                _render_storage_entry(entry, "analysis")
 
 def _render_match_card(match: dict[str, Any], view: str) -> None:
     header = f"{match['time']} - {match['home_team']} vs {match['away_team']}"

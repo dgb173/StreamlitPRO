@@ -1,0 +1,108 @@
+{
+  "home_team": "Yangon Royals FC (W)",
+  "away_team": "Myawady FC (W)",
+  "recent_form": {
+    "home": {
+      "wins": 0,
+      "total": 0
+    },
+    "away": {
+      "wins": 0,
+      "total": 0
+    }
+  },
+  "recent_indirect": {
+    "last_home": {
+      "home": "Yangon Royals FC (W)",
+      "away": "Ispe FC (W)",
+      "score": "0:7",
+      "ah": "-",
+      "ou": "-",
+      "stats_rows": [
+        {
+          "label": "Tiros",
+          "home": "<span style=\"color: red;\">0</span>",
+          "away": "<span style=\"color: green; font-weight: bold;\">23</span>"
+        },
+        {
+          "label": "Tiros a Puerta",
+          "home": "<span style=\"color: red;\">0</span>",
+          "away": "<span style=\"color: green; font-weight: bold;\">14</span>"
+        },
+        {
+          "label": "Ataques",
+          "home": "<span style=\"color: red;\">44</span>",
+          "away": "<span style=\"color: green; font-weight: bold;\">111</span>"
+        },
+        {
+          "label": "Ataques Peligrosos",
+          "home": "<span style=\"color: red;\">8</span>",
+          "away": "<span style=\"color: green; font-weight: bold;\">86</span>"
+        },
+        {
+          "label": "Red Cards",
+          "home": 0,
+          "away": 0
+        }
+      ],
+      "date": ""
+    },
+    "last_away": {
+      "home": "Shan Utd (W)",
+      "away": "Myawady FC (W)",
+      "score": "5:0",
+      "ah": "-",
+      "ou": "-",
+      "stats_rows": [
+        {
+          "label": "Tiros",
+          "home": "<span style=\"color: green; font-weight: bold;\">27</span>",
+          "away": "<span style=\"color: red;\">2</span>"
+        },
+        {
+          "label": "Tiros a Puerta",
+          "home": "<span style=\"color: green; font-weight: bold;\">17</span>",
+          "away": "<span style=\"color: red;\">0</span>"
+        },
+        {
+          "label": "Ataques",
+          "home": "<span style=\"color: green; font-weight: bold;\">74</span>",
+          "away": "<span style=\"color: red;\">57</span>"
+        },
+        {
+          "label": "Ataques Peligrosos",
+          "home": "<span style=\"color: green; font-weight: bold;\">57</span>",
+          "away": "<span style=\"color: red;\">22</span>"
+        },
+        {
+          "label": "Red Cards",
+          "home": 0,
+          "away": 0
+        }
+      ],
+      "date": ""
+    },
+    "h2h_col3": null
+  },
+  "handicap": {
+    "ah_line": "-",
+    "favorite": "",
+    "cover_on_last_h2h": "DESCONOCIDO"
+  },
+  "dangerous_attacks": {},
+  "favorite_dangerous_attacks": null,
+  "h2h_indirect": {
+    "home_better": 0,
+    "away_better": 0,
+    "draws": 0,
+    "samples": []
+  },
+  "h2h_stats": {
+    "home_wins": 0,
+    "away_wins": 0,
+    "draws": 0
+  },
+  "match_date": "2025-09-19",
+  "match_time": "17:00",
+  "match_datetime": "2025-09-19 17:00"
+}

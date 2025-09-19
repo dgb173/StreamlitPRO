@@ -9,11 +9,14 @@ from typing import Any, Iterable
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+from zoneinfo import ZoneInfo
 
 URL_NOWGOAL_BASE = "https://live20.nowgoal25.com"
 BF_DATA_PATH = "/gf/data/bf_en-idn.js"
 REQUEST_TIMEOUT_SECONDS = 12
 _CACHE_TTL_SECONDS = 60
+
+SPAIN_TZ = ZoneInfo('Europe/Madrid')
 
 _REQUEST_HEADERS = {
     "User-Agent": (
@@ -221,6 +224,18 @@ def _build_entry(values: list[Any]) -> dict[str, Any] | None:
     }
 
 
+def _format_match_time(match_time: dt.datetime) -> str:
+    try:
+        if match_time.tzinfo is None:
+            aware = match_time.replace(tzinfo=dt.timezone.utc)
+        else:
+            aware = match_time.astimezone(dt.timezone.utc)
+        local_time = aware.astimezone(SPAIN_TZ)
+    except Exception:
+        local_time = match_time
+    return local_time.strftime("%d/%m %H:%M")
+
+
 def _format_line(value: float | int | str | None) -> str:
     if value is None:
         return "-"
@@ -235,7 +250,7 @@ def _format_line(value: float | int | str | None) -> str:
 
 
 def _serialize_match(entry: dict[str, Any], *, include_score: bool) -> dict[str, str]:
-    display_time = (entry["match_time"] + dt.timedelta(hours=2)).strftime("%d/%m %H:%M")
+    display_time = _format_match_time(entry["match_time"])
     payload: dict[str, str] = {
         "id": entry["id"],
         "time": display_time,
