@@ -19,10 +19,11 @@ from modules.estudio_scraper import (
     obtener_datos_completos_partido,
     obtener_datos_preview_ligero,
 )
+from modules.preview_storage import delete_preview, list_previews, upsert_previews
 
 
 PAGE_TITLE = "Analizador Profesional de Partidos"
-PAGE_ICON = "⚽"
+PAGE_ICON = "AP"
 MAX_MATCHES = 50
 DEFAULT_MATCH_COUNT = 20
 
@@ -73,16 +74,16 @@ def _get_filter_values(view: str, options: list[str]) -> tuple[str, str]:
         st.session_state[custom_key] = ""
 
     selected = st.sidebar.selectbox(
-        "Filtrar por hándicap",
+        "Filtrar por handicap",
         option_list,
         key=select_key,
         help="Selecciona un valor disponible o utiliza el campo manual para un valor personalizado.",
     )
     custom_value = st.sidebar.text_input(
-        "Hándicap manual",
+        "Handicap manual",
         value=st.session_state[custom_key],
         key=custom_key,
-        help="Introduce manualmente un hándicap (ej. 0, 0.25, -0.75).",
+        help="Introduce manualmente un handicap (ej. 0, 0.25, -0.75).",
     )
 
     return selected, custom_value
@@ -116,147 +117,147 @@ def _render_stats_rows(rows: list[dict[str, Any]]) -> None:
         return
     if not {"label", "home", "away"}.issubset(df.columns):
         return
-    df = df.rename(columns={"label": "Estadística", "home": "Casa", "away": "Fuera"})
-    df = df.set_index("Estadística")
+    df = df.rename(columns={"label": "Estadistica", "home": "Casa", "away": "Fuera"})
+    df = df.set_index("Estadistica")
     st.table(df)
 
 
 def _render_recent_indirect(preview: dict[str, Any]) -> None:
     indirect = preview.get("recent_indirect") or {}
-    col_left, col_right, col_center = st.columns(3)
+    if not indirect:
+        return
 
-    with col_left:
-        last_home = indirect.get("last_home")
-        st.markdown("### Último partido del local")
+    st.markdown("#### Referencias indirectas recientes")
+
+    col_home, col_away, col_h2h = st.columns(3)
+
+    last_home = indirect.get("last_home") or {}
+    with col_home:
+        st.markdown("**Ultimo partido del local**")
         if last_home:
-            st.markdown(
-                f"**{last_home.get('home')}** vs {last_home.get('away')}  "
-                f"\nMarcador: {last_home.get('score', 'N/A')}  "
-                f"\nHándicap: {last_home.get('ah', '-')}"
-            )
+            st.markdown(f"{last_home.get('home', '-')} vs {last_home.get('away', '-')}")
+            st.markdown(f"Marcador: {last_home.get('score', '-')}")
+            st.markdown(f"AH: {last_home.get('ah', '-')}")
             _render_stats_rows(last_home.get("stats_rows") or [])
         else:
-            st.info("Sin datos recientes del equipo local en liga.")
+            st.info("Sin datos del local en liga.")
 
-    with col_center:
-        h2h = indirect.get("h2h_col3")
-        st.markdown("### Rivales comunes")
-        if h2h:
-            st.markdown(
-                f"{h2h.get('score_line', 'N/A')}  \n"
-                f"Hándicap: {h2h.get('ah', '-')}  \n"
-                f"Fecha: {h2h.get('date', 'N/A')}"
-            )
-            _render_stats_rows(h2h.get("stats_rows") or [])
-        else:
-            st.info("No se encontraron enfrentamientos de rivales comunes recientes.")
-
-    with col_right:
-        last_away = indirect.get("last_away")
-        st.markdown("### Último partido del visitante")
+    last_away = indirect.get("last_away") or {}
+    with col_away:
+        st.markdown("**Ultimo partido del visitante**")
         if last_away:
-            st.markdown(
-                f"**{last_away.get('home')}** vs {last_away.get('away')}  "
-                f"\nMarcador: {last_away.get('score', 'N/A')}  "
-                f"\nHándicap: {last_away.get('ah', '-')}"
-            )
+            st.markdown(f"{last_away.get('home', '-')} vs {last_away.get('away', '-')}")
+            st.markdown(f"Marcador: {last_away.get('score', '-')}")
+            st.markdown(f"AH: {last_away.get('ah', '-')}")
             _render_stats_rows(last_away.get("stats_rows") or [])
         else:
-            st.info("Sin datos recientes del equipo visitante en liga.")
+            st.info("Sin datos del visitante en liga.")
 
-
-def _render_preview(preview: dict[str, Any]) -> None:
-    st.markdown("---")
-    st.markdown("#### Vista previa ligera")
-    handicap = preview.get("handicap", {})
-    st.markdown(
-        f"**Hándicap actual:** {handicap.get('ah_line', '-') }  "
-        f"\n**Favorito:** {handicap.get('favorite') or 'Sin favorito claro'}  "
-        f"\n**Último H2H vs línea:** {handicap.get('cover_on_last_h2h', 'N/D')}"
-    )
-
-    recent_form = preview.get("recent_form") or {}
-    if recent_form:
-        col_home, col_away = st.columns(2)
-        home = recent_form.get("home") or {}
-        away = recent_form.get("away") or {}
-        with col_home:
-            st.metric(
-                label=f"Racha {preview.get('home_team', 'Local')}",
-                value=f"{home.get('wins', 0)} victorias",
-                delta=f"Últimos {home.get('total', 0)} partidos",
-            )
-        with col_away:
-            st.metric(
-                label=f"Racha {preview.get('away_team', 'Visitante')}",
-                value=f"{away.get('wins', 0)} victorias",
-                delta=f"Últimos {away.get('total', 0)} partidos",
-            )
-
-    h2h_stats = preview.get("h2h_stats") or {}
-    if h2h_stats:
-        st.markdown(
-            f"**Enfrentamientos directos (últimos 8):** "
-            f"{h2h_stats.get('home_wins', 0)} victorias local / "
-            f"{h2h_stats.get('away_wins', 0)} victorias visitante / "
-            f"{h2h_stats.get('draws', 0)} empates."
-        )
-
-    indirect = preview.get("h2h_indirect") or {}
-    if indirect.get("samples"):
-        st.markdown("#### Comparativa de rivales comunes")
-        rows = []
-        for sample in indirect["samples"]:
-            rows.append(
-                {
-                    "Rival": sample.get("rival", "-"),
-                    "Margen Local": sample.get("home_margin"),
-                    "Margen Visitante": sample.get("away_margin"),
-                    "Veredicto": sample.get("verdict"),
-                }
-            )
-        df = pd.DataFrame(rows)
-        st.dataframe(df, hide_index=True, use_container_width=True)
-    else:
-        st.markdown("No hay suficientes datos de rivales comunes para esta vista previa.")
-
-    dangerous = preview.get("favorite_dangerous_attacks")
-    if dangerous:
-        if dangerous.get("very_superior"):
-            st.success(
-                f"Ataques peligrosos: {dangerous['name']} genera una ventaja clara "
-                f"({dangerous['own']} vs {dangerous['rival']})."
-            )
+    h2h_col3 = indirect.get("h2h_col3") or {}
+    with col_h2h:
+        st.markdown("**H2H rivales (columna 3)**")
+        if h2h_col3:
+            st.markdown(f"Marcador: {h2h_col3.get('score_line', '-')}")
+            st.markdown(f"AH: {h2h_col3.get('ah', '-')}")
+            st.markdown(f"Cover: {h2h_col3.get('cover', '-')}")
         else:
-            st.info(
-                f"Ataques peligrosos equilibrados para {dangerous['name']} "
-                f"({dangerous['own']} vs {dangerous['rival']})."
-            )
-
-    _render_recent_indirect(preview)
-
-    st.markdown("---")
-    st.caption("Datos obtenidos de Nowgoal. Vista previa calculada mediante scraping ligero.")
+            st.info("Sin datos de rivales comunes recientes.")
 
 
-def _set_analysis_query(match_id: str, origin: str) -> None:
-    st.experimental_set_query_params(view="analysis", match_id=match_id, origin=origin)
-    st.experimental_rerun()
 
 
-def _render_match_card(match: dict[str, Any], view: str) -> None:
-    header = f"{match['time']} · {match['home_team']} vs {match['away_team']}"
-    if view == "finished":
-        header += f" · Resultado: {match.get('score', 'N/A')}"
+def _render_storage_entry(entry: dict[str, Any], payload_type: str) -> None:
+    match_id = str(entry.get("match_id", ""))
+    stored_at = entry.get("stored_at") or "Sin fecha"
+    source = entry.get("source") or "manual"
+    payload = entry.get("payload") or {}
+    header = f"{payload_type.title()} - {match_id or '(sin ID)'} - {stored_at}"
 
     with st.expander(header):
-        st.markdown(
-            f"**Hándicap:** {match.get('handicap', '-') }  "
-            f"\n**Línea de goles:** {match.get('goal_line', '-') }  "
-            f"\n**ID Nowgoal:** `{match['id']}`"
-        )
+        st.write(f"Fuente: {source}")
+        st.write(f"Guardado: {stored_at}")
+        if payload:
+            if payload_type == "preview":
+                _render_preview(payload)
+            st.json(payload)
+        else:
+            st.info("No hay datos disponibles para esta entrada.")
 
-        col_preview, col_analysis, col_json = st.columns([1, 1, 1])
+        col_view, col_delete = st.columns(2)
+
+        if payload_type == "analysis" and payload:
+            if col_view.button(
+                f"Abrir analisis {match_id}",
+                key=f"storage_open_analysis_{match_id}_{stored_at}",
+            ):
+                analysis_cache: dict[str, Any] = st.session_state["analysis_cache"]
+                analysis_cache[match_id] = payload
+                _set_analysis_query(match_id, origin="storage")
+
+        elif payload_type == "preview" and payload:
+            if col_view.button(
+                f"Cargar preview {match_id}",
+                key=f"storage_open_preview_{match_id}_{stored_at}",
+            ):
+                cache = st.session_state["preview_cache"]
+                cache[("storage", match_id)] = payload
+                st.success("Preview disponible en la cache local para su consulta inmediata.")
+
+        if col_delete.button(
+            f"Eliminar {payload_type}",
+            key=f"storage_delete_{payload_type}_{match_id}_{stored_at}",
+        ):
+            if delete_preview(match_id, payload_type=payload_type):
+                st.success("Entrada eliminada correctamente.")
+                st.experimental_rerun()
+            else:
+                st.error("No se pudo eliminar la entrada.")
+
+
+def _render_storage_manager() -> None:
+    st.header("Almacen de estudios")
+    storage_file = Path(__file__).resolve().parent / "preview_store.json"
+    st.caption(f"Datos persistidos en: {storage_file}")
+
+    tabs = st.tabs(["Vistas previas", "Analisis guardados"])
+    preview_entries = list_previews(payload_type="preview")
+    analysis_entries = list_previews(payload_type="analysis")
+
+    with tabs[0]:
+        if not preview_entries:
+            st.info("No hay vistas previas guardadas.")
+        else:
+            for entry in preview_entries:
+                _render_storage_entry(entry, "preview")
+
+    with tabs[1]:
+        if not analysis_entries:
+            st.info("No hay analisis guardados.")
+        else:
+            for entry in analysis_entries:
+                _render_storage_entry(entry, "analysis")
+
+def _render_match_card(match: dict[str, Any], view: str) -> None:
+    header = f"{match['time']} - {match['home_team']} vs {match['away_team']}"
+    if view == "finished":
+        header += f" - Resultado: {match.get('score', 'N/A')}"
+
+    with st.expander(header):
+        info_lines = [
+            f"**Handicap:** {match.get('handicap', '-')}",
+            f"**Linea de goles:** {match.get('goal_line', '-')}",
+            f"**ID Nowgoal:** `{match['id']}`",
+        ]
+        st.markdown("  \n".join(info_lines))
+
+        columns_config = [1, 1, 1]
+        include_storage = view == "finished"
+        if include_storage:
+            columns_config.append(1)
+
+        columns = st.columns(columns_config)
+        col_preview, col_analysis, col_json = columns[:3]
+        col_storage = columns[3] if include_storage else None
 
         cache_key = (view, match["id"])
         preview_cache: dict[tuple[str, str], dict[str, Any]] = st.session_state["preview_cache"]
@@ -266,7 +267,7 @@ def _render_match_card(match: dict[str, Any], view: str) -> None:
                 preview_data = obtener_datos_preview_ligero(match["id"])
             preview_cache[cache_key] = preview_data
 
-        if col_analysis.button("Abrir análisis completo", key=f"analysis_btn_{view}_{match['id']}"):
+        if col_analysis.button("Abrir analisis completo", key=f"analysis_btn_{view}_{match['id']}"):
             _set_analysis_query(match["id"], origin=view)
 
         if col_json.button("Ver JSON crudo", key=f"json_btn_{view}_{match['id']}"):
@@ -277,12 +278,46 @@ def _render_match_card(match: dict[str, Any], view: str) -> None:
                     preview_cache[cache_key] = preview_data
             st.json(preview_data)
 
-        preview_data = preview_cache.get(cache_key)
-        if preview_data:
-            if preview_data.get("error"):
-                st.error(preview_data["error"])
-            else:
-                _render_preview(preview_data)
+        if include_storage and col_storage is not None:
+            with col_storage:
+                st.caption("Almacen")
+
+                if st.button("Guardar preview", key=f"store_preview_{match['id']}"):
+                    preview_data = preview_cache.get(cache_key)
+                    if preview_data is None:
+                        with st.spinner("Calculando vista previa..."):
+                            preview_data = obtener_datos_preview_ligero(match["id"])
+                            preview_cache[cache_key] = preview_data
+                    if not preview_data or preview_data.get("error"):
+                        st.error(preview_data.get("error", "No se pudo generar la vista previa."))
+                    else:
+                        summary = upsert_previews(
+                            [(match["id"], preview_data)],
+                            source="streamlit_preview",
+                            payload_type="preview",
+                        )
+                        st.success(
+                            f"Preview guardada (nuevos: {summary.get('added', 0)}, actualizados: {summary.get('updated', 0)})."
+                        )
+
+                if st.button("Guardar analisis", key=f"store_analysis_{match['id']}"):
+                    analysis_cache: dict[str, Any] = st.session_state["analysis_cache"]
+                    analysis_data = analysis_cache.get(match["id"])
+                    if analysis_data is None:
+                        with st.spinner("Calculando analisis completo..."):
+                            analysis_data = obtener_datos_completos_partido(match["id"])
+                            analysis_cache[match["id"]] = analysis_data
+                    if not analysis_data or analysis_data.get("error"):
+                        st.error(analysis_data.get("error", "No se pudo generar el analisis."))
+                    else:
+                        summary = upsert_previews(
+                            [(match["id"], analysis_data)],
+                            source="streamlit_analysis",
+                            payload_type="analysis",
+                        )
+                        st.success(
+                            f"Analisis guardado (nuevos: {summary.get('added', 0)}, actualizados: {summary.get('updated', 0)})."
+                        )
 
 
 def _render_matches_list(view: str) -> None:
@@ -319,16 +354,16 @@ def _render_matches_list(view: str) -> None:
 
 def _render_analysis(match_id: str, origin: str) -> None:
     st.sidebar.markdown("---")
-    if st.sidebar.button("⬅️ Volver a la lista", use_container_width=True):
-        target_params = {"view": origin} if origin in {"upcoming", "finished"} else {}
+    if st.sidebar.button("Volver a la lista", use_container_width=True):
+        target_params = {"view": origin} if origin in {"upcoming", "finished", "storage"} else {}
         st.experimental_set_query_params(**target_params)
         st.experimental_rerun()
 
-    st.header(f"Análisis completo del partido {match_id}")
+    st.header(f"Analisis completo del partido {match_id}")
 
     analysis_cache: dict[str, Any] = st.session_state["analysis_cache"]
     if match_id not in analysis_cache:
-        with st.spinner("Ejecutando análisis completo. Este proceso puede tardar unos segundos..."):
+        with st.spinner("Ejecutando analisis completo. Este proceso puede tardar unos segundos..."):
             analysis_cache[match_id] = obtener_datos_completos_partido(match_id)
 
     datos = analysis_cache[match_id]
@@ -359,15 +394,15 @@ def main() -> None:
 
     st.title(f"{PAGE_ICON} {PAGE_TITLE}")
     st.markdown(
-        "Esta interfaz web está optimizada para funcionar íntegramente en Streamlit Cloud "
-        "manteniendo todas las capacidades de análisis del proyecto original."
+        "Esta interfaz web esta optimizada para funcionar enteramente en Streamlit Cloud "
+        "manteniendo todas las capacidades de analisis del proyecto original."
     )
 
-    if st.sidebar.button("🔁 Actualizar datos", help="Limpia la caché de datos externos"):
+    if st.sidebar.button("Actualizar datos", help="Limpia la cache de datos externos"):
         st.cache_data.clear()
         st.session_state["preview_cache"].clear()
         st.session_state["analysis_cache"].clear()
-        st.success("Cachés limpiadas correctamente. Los datos se recargarán en la próxima consulta.")
+        st.success("Caches limpiadas correctamente. Los datos se recargaran en la proxima consulta.")
 
     query_params = st.experimental_get_query_params()
     if query_params.get("view", [None])[0] == "analysis" and query_params.get("match_id"):
@@ -378,12 +413,13 @@ def main() -> None:
 
     current_view = st.session_state.get("list_view", "upcoming")
     view_from_query = query_params.get("view", [None])[0]
-    if view_from_query in {"upcoming", "finished"}:
+    if view_from_query in {"upcoming", "finished", "storage"}:
         current_view = view_from_query
 
     view_labels = {
-        "Próximos partidos": "upcoming",
+        "Proximos partidos": "upcoming",
         "Resultados finalizados": "finished",
+        "Almacen de analisis": "storage",
     }
     reverse_labels = {v: k for k, v in view_labels.items()}
 
@@ -397,6 +433,10 @@ def main() -> None:
 
     st.experimental_set_query_params(view=current_view)
     st.subheader(reverse_labels[current_view])
+
+    if current_view == "storage":
+        _render_storage_manager()
+        return
 
     _render_matches_list(current_view)
 
