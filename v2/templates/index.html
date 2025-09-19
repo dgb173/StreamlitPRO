@@ -76,12 +76,7 @@
         .bg-light-gray {
             background-color: #f2f2f2 !important; /* A light gray */
         }
-                .compact-card .card-header { padding: 0.5rem 0.75rem; font-size: 0.9rem; background-color: #f8f9fb; }
-        .compact-card .card-body { padding: 0.75rem; font-size: 0.85rem; }
-        .compact-card .badge { font-size: 0.75rem; }
-        .away-muted { color: #6c757d; font-weight: 600; }
-        .store-analysis-btn { width: 2.4rem; }
-</style>
+    </style>
 </head>
 <body>
     <div class="container">
@@ -90,8 +85,6 @@
         <div class="d-flex justify-content-center gap-2 mb-4">
             <a href="/" class="btn {% if page_mode == 'upcoming' %}btn-primary active{% else %}btn-outline-primary{% endif %} btn-lg">Ver Próximos Partidos</a>
             <a href="/resultados" class="btn {% if page_mode == 'finished' %}btn-primary active{% else %}btn-outline-primary{% endif %} btn-lg">Analizar Resultados</a>
-
-            <a href="/almacen_preview" class="btn btn-outline-dark btn-lg">Gestionar almacen</a>
         </div>
         
         <div class="card mb-3">
@@ -139,7 +132,6 @@
                         <th>Hándicap</th>
                         <th>Línea de Goles</th>
                         <th>Análisis Avanzado</th>
-                        {% if page_mode == 'finished' %}<th>Guardar</th>{% endif %}
                         <th>Vista Previa Rápida</th>
                     </tr>
                 </thead>
@@ -164,23 +156,18 @@
                         <td class="align-middle">
                             <a href="/estudio/{{ match.id }}" target="_blank" class="study-link" title="Abrir estudio del partido"><i class="fa-solid fa-chart-simple"></i></a>
                         </td>
-                        {% if page_mode == 'finished' %}
-                        <td class="align-middle text-center">
-                            <button class="btn btn-sm btn-outline-primary store-analysis-btn" data-match-id="{{ match.id }}" title="Guardar en almacen"><i class="fa-solid fa-floppy-disk"></i></button>
-                        </td>
-                        {% endif %}
                         <td class="align-middle">
                             <span class="preview-btn" data-match-id="{{ match.id }}" title="Ver vista previa rápida"><i class="fa-solid fa-eye"></i></span>
                         </td>
                     </tr>
                     <tr id="preview-row-{{ match.id }}" style="display: none;">
-                        <td colspan="{% if page_mode == 'finished' %}8{% else %}6{% endif %}" class="preview-container" id="preview-container-{{ match.id }}">
+                        <td colspan="{% if page_mode == 'finished' %}7{% else %}6{% endif %}" class="preview-container" id="preview-container-{{ match.id }}">
                             <div class="preview-loading">Buscando analisis detallado...</div>
                         </td>
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="{% if page_mode == 'finished' %}8{% else %}6{% endif %}" class="text-center p-5">No se encontraron partidos. El scraper podría estar en ejecución o no hay partidos disponibles.</td>
+                        <td colspan="{% if page_mode == 'finished' %}7{% else %}6{% endif %}" class="text-center p-5">No se encontraron partidos. El scraper podría estar en ejecución o no hay partidos disponibles.</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -220,40 +207,6 @@
             window.location.href = path + '?' + params.toString(); // FIX: navigates with updated params
         });
 
-        function handleStoreButton(button) {
-            const matchId = button.getAttribute('data-match-id');
-            if (!matchId) {
-                return;
-            }
-            const originalHtml = button.innerHTML;
-            button.disabled = true;
-            button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
-            fetch('/almacen_preview/store', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ match_id: matchId, refresh: '1' })
-            })
-                .then(async (response) => {
-                    const data = await response.json().catch(() => ({}));
-                    if (!response.ok || (data && data.error)) {
-                        const message = (data && data.error) ? data.error : 'No se pudo guardar el analisis.';
-                        alert(message);
-                        button.disabled = false;
-                        button.innerHTML = originalHtml;
-                        return;
-                    }
-                    button.classList.remove('btn-outline-primary');
-                    button.classList.add('btn-success');
-                    button.innerHTML = '<i class="fa-solid fa-check"></i>';
-                    setTimeout(() => { button.disabled = false; }, 1200);
-                })
-                .catch(error => {
-                    console.error('Error guardando analisis en el almacen', error);
-                    alert('No se pudo guardar el analisis.');
-                    button.disabled = false;
-                    button.innerHTML = originalHtml;
-                });
-        }
         function loadDeepAnalysis(matchId) {
             const previewContainer = document.getElementById(`preview-container-${matchId}`);
             const previewRow = document.getElementById(`preview-row-${matchId}`);
@@ -272,21 +225,6 @@
                         return;
                     }
                     previewContainer.setAttribute('data-loaded', 'true');
-                    const cacheMeta = data._cached_analysis;
-                    let cacheNoticeHtml = '';
-                    if (cacheMeta && cacheMeta.stored_at) {
-                        let storedAtText = cacheMeta.stored_at;
-                        try {
-                            const parsedDate = new Date(cacheMeta.stored_at);
-                            if (!Number.isNaN(parsedDate.getTime())) {
-                                storedAtText = parsedDate.toLocaleString();
-                            }
-                        } catch (err) {
-                            console.warn('No se pudo interpretar la fecha de cache', err);
-                        }
-                        const sourceLabel = cacheMeta.source || 'almacen';
-                        cacheNoticeHtml = `<div class="alert alert-info py-2 mb-3">Datos desde almacen (${storedAtText}) - fuente: ${sourceLabel}</div>`;
-                    }
 
                     let finalScoreHtml = '';
                     if (PAGE_MODE === 'finished' && data.final_score) {
@@ -321,7 +259,7 @@
 
                     let rendimiento_html = '';
                     const ri = data.recent_indirect_full || {};
-                    if (ri.last_home || ri.last_away || ri.h2h_col3 ) {
+                    if (ri.last_home || ri.last_away || ri.h2h_col3) {
                         rendimiento_html += '<div class="row">';
                         if (ri.last_home) {
                             const lh = ri.last_home;
@@ -370,13 +308,14 @@
                                             <p class="mb-1"><strong>AH:</strong> <span class="ah-value">${hc.ah}</span></p>
                                             ${renderCoverLine(hc.cover_status)}
                                             ${renderStatsTable(hc.stats_rows)}
-                                            ${hc.analysis ? `<p class="mt-2"><b>Analisis:</b> ${hc.analysis}</p>` : ''}
+                                            ${hc.analysis ? `<p class="mt-2"><b>Análisis:</b> ${hc.analysis}</p>` : ''}
                                         </div>
                                     </div>
                                 </div>`;
                         }
                         rendimiento_html += '</div>';
                     }
+
                     let comparativas_html = '';
                     const ci = data.comparativas_indirectas || {};
                     if (ci.left || ci.right) {
@@ -384,53 +323,42 @@
                         comparativas_html += '<div class="row">';
                         if (ci.left) {
                             const c1 = ci.left;
-                            const score = (c1.score || '').replace(':', ' - ') || '-';
                             comparativas_html += `
-                                <div class="col-md-6 mb-2">
-                                    <div class="card compact-card">
-                                        <div class="card-header py-2">
-                                            <span class="home-color">${c1.title_home_name || '-'}</span>
-                                            <span class="text-muted small">vs</span>
-                                            <span class="away-muted">${c1.title_away_name || '-'}</span>
-                                        </div>
+                                <div class="col-md-6 mb-3">
+                                    <div class="card h-100">
+                                        <div class="card-header"><h6 class="mb-0"><span class="home-color">${c1.title_home_name}</span> vs. Últ. Rival de <span class="away-color">${c1.title_away_name}</span></h6></div>
                                         <div class="card-body">
-                                            <div class="d-flex justify-content-between align-items-center mb-1">
-                                                <span class="fw-bold">${score}</span>
-                                                <span class="badge bg-light text-dark">AH ${c1.ah || '-'}</span>
-                                            </div>
-                                            <div class="small text-muted mb-2">${c1.home_team || '-'} vs ${c1.away_team || '-'}</div>
+                                            <p class="text-center"><font size="5">${c1.score.replace(':', ' - ')}</font></p>
+                                            <p class="text-center"><span class="home-color">${c1.home_team}</span> vs <span class="away-color">${c1.away_team}</span></p>
+                                            <p class="mb-1"><b>AH:</b> <span class="ah-value">${c1.ah}</span></p>
+                                            <p class="mb-1"><b>Localía de '${c1.title_home_name}':</b> <span class="home-color">${c1.localia}</span></p>
                                             ${renderCoverLine(c1.cover_status)}
                                             ${renderStatsTable(c1.stats_rows)}
-                                            ${c1.analysis ? `<p class="small mb-0"><strong>Insight:</strong> ${c1.analysis}</p>` : ''}
+                                            ${c1.analysis ? `<p class="mt-2"><b>Análisis:</b> ${c1.analysis}</p>` : ''}
                                         </div>
                                     </div>
                                 </div>`;
                         }
                         if (ci.right) {
                             const c2 = ci.right;
-                            const score = (c2.score || '').replace(':', ' - ') || '-';
                             comparativas_html += `
-                                <div class="col-md-6 mb-2">
-                                    <div class="card compact-card">
-                                        <div class="card-header py-2">
-                                            <span class="home-color">${c2.title_home_name || '-'}</span>
-                                            <span class="text-muted small">vs</span>
-                                            <span class="away-muted">${c2.title_away_name || '-'}</span>
-                                        </div>
+                                <div class="col-md-6 mb-3">
+                                    <div class="card h-100">
+                                        <div class="card-header"><h6 class="mb-0"><span class="away-color">${c2.title_away_name}</span> vs. Últ. Rival de <span class="home-color">${c2.title_home_name}</span></h6></div>
                                         <div class="card-body">
-                                            <div class="d-flex justify-content-between align-items-center mb-1">
-                                                <span class="fw-bold">${score}</span>
-                                                <span class="badge bg-light text-dark">AH ${c2.ah || '-'}</span>
-                                            </div>
-                                            <div class="small text-muted mb-2">${c2.home_team || '-'} vs ${c2.away_team || '-'}</div>
+                                            <p class="text-center"><font size="5">${c2.score.replace(':', ' - ')}</font></p>
+                                            <p class="text-center"><span class="home-color">${c2.home_team}</span> vs <span class="away-color">${c2.away_team}</span></p>
+                                            <p class="mb-1"><b>AH:</b> <span class="ah-value">${c2.ah}</span></p>
+                                            <p class="mb-1"><b>Localía de '${c2.title_away_name}':</b> <span class="away-color">${c2.localia}</span></p>
                                             ${renderCoverLine(c2.cover_status)}
                                             ${renderStatsTable(c2.stats_rows)}
-                                            ${c2.analysis ? `<p class="small mb-0"><strong>Insight:</strong> ${c2.analysis}</p>` : ''}
+                                            ${c2.analysis ? `<p class="mt-2"><b>Análisis:</b> ${c2.analysis}</p>` : ''}
                                         </div>
                                     </div>
                                 </div>`;
                         }
                         comparativas_html += '</div>';
+                    }
 
                     const new_html = data.simplified_html;
 
@@ -450,7 +378,7 @@
                         </div>
                     `;
 
-                    previewContainer.innerHTML = cacheNoticeHtml + combined_html;
+                    previewContainer.innerHTML = combined_html;
                 })
                 .catch(error => {
                     clearTimeout(timeoutId);
@@ -464,11 +392,6 @@
         }
 
         document.addEventListener('click', function(e) {
-            const storeButton = e.target.closest('.store-analysis-btn');
-            if (storeButton) {
-                handleStoreButton(storeButton);
-                return;
-            }
             const btn = e.target.closest('.preview-btn');
             if (btn) {
                 const matchId = btn.getAttribute('data-match-id');
@@ -516,12 +439,10 @@
                     matches.forEach(match => {
                         const row = document.createElement('tr');
                         let scoreCell = '';
-                        let storeCell = '';
                         if (PAGE_MODE === 'finished') {
                             scoreCell = `<td class="align-middle"><span class="badge bg-dark">${match.score}</span></td>`;
-                            storeCell = `<td class="align-middle text-center"><button class="btn btn-sm btn-outline-primary store-analysis-btn" data-match-id="${match.id}" title="Guardar en almacen"><i class="fa-solid fa-floppy-disk"></i></button></td>`;
                         }
-                        const colspan = (PAGE_MODE === 'finished') ? 8 : 6;
+                        const colspan = (PAGE_MODE === 'finished') ? 7 : 6;
 
                         row.innerHTML = `
                             <td class="align-middle match-time">${match.time}</td>
@@ -540,13 +461,12 @@
                             <td class="align-middle">
                                 <a href="/estudio/${match.id}" target="_blank" class="study-link" title="Abrir estudio del partido"><i class="fa-solid fa-chart-simple"></i></a>
                             </td>
-                            ${storeCell}
                             <td class="align-middle">
-                                <span class="preview-btn" data-match-id="${match.id}" title="Ver vista previa r�pida"><i class="fa-solid fa-eye"></i></span>
+                                <span class="preview-btn" data-match-id="${match.id}" title="Ver vista previa rápida"><i class="fa-solid fa-eye"></i></span>
                             </td>
                         `;
                         tbody.appendChild(row);
-
+                        
                         const previewRow = document.createElement('tr');
                         previewRow.id = `preview-row-${match.id}`;
                         previewRow.style.display = 'none';
@@ -581,14 +501,3 @@
     </script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
