@@ -7,11 +7,14 @@ from modules.funciones_auxiliares import _calcular_estadisticas_contra_rival, _a
 import time
 import re
 import math
+import os
+import shutil
 from bs4 import BeautifulSoup
 import pandas as pd
 from concurrent.futures import ThreadPoolExecutor
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options as ChromeOptions
+from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait, Select
 from selenium.webdriver.support import expected_conditions as EC
@@ -24,6 +27,53 @@ from modules.utils import parse_ah_to_number_of, format_ah_as_decimal_string_of,
 BASE_URL_OF = "https://live18.nowgoal25.com"
 SELENIUM_TIMEOUT_SECONDS_OF = 10
 PLACEHOLDER_NODATA = "*(No disponible)*"
+
+
+def _build_chrome_options() -> ChromeOptions:
+    options = ChromeOptions()
+    # Compatibilidad con los contenedores de Streamlit Cloud.
+    options.add_argument("--headless=new")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--disable-gpu")
+    options.add_argument("--disable-setuid-sandbox")
+    options.add_argument(
+        "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 Chrome/116.0.0.0 Safari/537.36"
+    )
+    options.add_argument("--blink-settings=imagesEnabled=false")
+
+    chrome_candidates = [
+        os.environ.get("GOOGLE_CHROME_BIN"),
+        os.environ.get("CHROME_BINARY"),
+        "/usr/bin/chromium",
+        "/usr/bin/chromium-browser",
+        "/usr/lib/chromium-browser/chromium-browser",
+    ]
+    for candidate in chrome_candidates:
+        if candidate and os.path.exists(candidate):
+            options.binary_location = candidate
+            break
+
+    options.add_argument("--window-size=1920,1080")
+    return options
+
+
+def _create_chrome_driver() -> webdriver.Chrome:
+    options = _build_chrome_options()
+    driver_candidates = [
+        os.environ.get("CHROMEDRIVER_PATH"),
+        shutil.which("chromedriver"),
+        "/usr/bin/chromedriver",
+        "/usr/lib/chromium-browser/chromedriver",
+    ]
+    service_path = None
+    for candidate in driver_candidates:
+        if candidate and os.path.exists(candidate):
+            service_path = candidate
+            break
+    service = Service(service_path) if service_path else Service()
+    return webdriver.Chrome(service=service, options=options)
 
 def parse_ah_to_number_of(ah_line_str: str):
     if not isinstance(ah_line_str, str): return None
@@ -871,14 +921,7 @@ def obtener_datos_completos_partido(match_id: str):
         return {"error": "ID de partido inválido."}
 
     # --- Inicialización de Selenium ---
-    options = ChromeOptions()
-    options.add_argument("--headless")
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
-    options.add_argument("--disable-gpu")
-    options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/116.0.0.0 Safari/537.36")
-    options.add_argument('--blink-settings=imagesEnabled=false')
-    driver = webdriver.Chrome(options=options)
+    driver = _create_chrome_driver()
     
     main_page_url = f"{BASE_URL_OF}/match/h2h-{match_id}"
     datos = {"match_id": match_id}
@@ -1078,14 +1121,7 @@ def obtener_datos_preview_rapido(match_id: str):
     url = f"{BASE_URL_OF}/match/h2h-{match_id}"
     try:
         # 1. Cargar con Selenium para replicar el método de extracción principal
-        options = ChromeOptions()
-        options.add_argument("--headless")
-        options.add_argument("--no-sandbox")
-        options.add_argument("--disable-dev-shm-usage")
-        options.add_argument("--disable-gpu")
-        options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/116.0.0.0 Safari/537.36")
-        options.add_argument('--blink-settings=imagesEnabled=false')
-        driver = webdriver.Chrome(options=options)
+        driver = _create_chrome_driver()
         driver.get(url)
         WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.ID, "table_v1")))
         # Ajustar selects a 8, igual que en el flujo completo
