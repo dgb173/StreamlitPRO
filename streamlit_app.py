@@ -243,13 +243,12 @@ def _render_preview(preview: dict[str, Any]) -> None:
 def _normalize_query_params() -> dict[str, list[str]]:
     """Return current query parameters as a dict of lists."""
 
-    try:
-        raw_params = dict(st.query_params)
-    except Exception:
-        try:  # pragma: no cover - compatibility with older versions
-            raw_params = st.experimental_get_query_params()
-        except Exception:
-            raw_params = {}
+    query_params_obj = getattr(st, "query_params", None)
+    if query_params_obj is not None:
+        raw_params = dict(query_params_obj)
+    else:  # pragma: no cover - compatibility with older versions
+        legacy_get = getattr(st, "experimental_get_query_params", None)
+        raw_params = legacy_get() if legacy_get is not None else {}
 
     normalized: dict[str, list[str]] = {}
     for key, value in raw_params.items():
@@ -271,20 +270,28 @@ def _query_param_first(params: dict[str, Sequence[str]], key: str, default: str 
 
 def _replace_query_params(**params: str | None) -> None:
     sanitized = {key: value for key, value in params.items() if value is not None}
-    try:
-        st.query_params.clear()
-        if sanitized:
-            st.query_params.update({key: str(value) for key, value in sanitized.items()})
-    except Exception:  # pragma: no cover - compatibility branch
-        st.experimental_set_query_params(**{key: str(value) for key, value in sanitized.items()})
+
+    query_params_obj = getattr(st, "query_params", None)
+    if query_params_obj is not None:
+        query_params_obj.clear()
+        for key, value in sanitized.items():
+            query_params_obj[key] = str(value)
+        return
+
+    legacy_set = getattr(st, "experimental_set_query_params", None)
+    if legacy_set is not None:  # pragma: no cover - compatibility branch
+        legacy_set(**{key: str(value) for key, value in sanitized.items()})
 
 
 def _rerun() -> None:
     rerun_callable = getattr(st, "rerun", None)
     if rerun_callable is not None:
         rerun_callable()
-    else:  # pragma: no cover - fallback for older Streamlit versions
-        st.experimental_rerun()
+        return
+
+    legacy_rerun = getattr(st, "experimental_rerun", None)
+    if legacy_rerun is not None:  # pragma: no cover - fallback for older Streamlit versions
+        legacy_rerun()
 
 
 def _set_analysis_query(match_id: str, origin: str) -> None:
