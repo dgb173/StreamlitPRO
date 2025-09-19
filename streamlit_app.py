@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
@@ -107,6 +107,38 @@ def _ensure_session_defaults() -> None:
     st.session_state.setdefault("analysis_cache", {})
     st.session_state.setdefault("list_view", "upcoming")
 
+def _normalize_query_value(value: object) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, str):
+        return value
+    if isinstance(value, (list, tuple)):
+        return value[0] if value else None
+    return str(value)
+
+
+def _get_query_param_first(name: str) -> str | None:
+    return _normalize_query_value(st.query_params.get(name))
+
+
+def _sync_query_params(expected: dict[str, str]) -> None:
+    params_proxy = st.query_params
+    current = {key: _normalize_query_value(params_proxy.get(key)) for key in list(params_proxy.keys())}
+    if current == expected:
+        return
+    params_proxy.clear()
+    for key, value in expected.items():
+        params_proxy[key] = value
+
+
+def _set_analysis_query(match_id: str, origin: str) -> None:
+    _sync_query_params({
+        'view': 'analysis',
+        'match_id': str(match_id),
+        'origin': origin,
+    })
+    st.rerun()
+
 
 def _render_stats_rows(rows: list[dict[str, Any]]) -> None:
     if not rows:
@@ -209,7 +241,7 @@ def _render_storage_entry(entry: dict[str, Any], payload_type: str) -> None:
         ):
             if delete_preview(match_id, payload_type=payload_type):
                 st.success("Entrada eliminada correctamente.")
-                st.experimental_rerun()
+                st.rerun()
             else:
                 st.error("No se pudo eliminar la entrada.")
 
@@ -335,7 +367,7 @@ def _render_matches_list(view: str) -> None:
 
     if st.sidebar.button("Limpiar filtro"):
         _clear_filters(view)
-        st.experimental_rerun()
+        st.rerun()
 
     handicap_filter = _resolve_handicap_filter(selected_option, custom_value)
 
@@ -355,9 +387,11 @@ def _render_matches_list(view: str) -> None:
 def _render_analysis(match_id: str, origin: str) -> None:
     st.sidebar.markdown("---")
     if st.sidebar.button("Volver a la lista", use_container_width=True):
-        target_params = {"view": origin} if origin in {"upcoming", "finished", "storage"} else {}
-        st.experimental_set_query_params(**target_params)
-        st.experimental_rerun()
+        if origin in {"upcoming", "finished", "storage"}:
+            _sync_query_params({"view": origin})
+        else:
+            _sync_query_params({})
+        st.rerun()
 
     st.header(f"Analisis completo del partido {match_id}")
 
@@ -404,17 +438,16 @@ def main() -> None:
         st.session_state["analysis_cache"].clear()
         st.success("Caches limpiadas correctamente. Los datos se recargaran en la proxima consulta.")
 
-    query_params = st.experimental_get_query_params()
-    if query_params.get("view", [None])[0] == "analysis" and query_params.get("match_id"):
-        match_id = query_params["match_id"][0]
-        origin = query_params.get("origin", ["upcoming"])[0]
-        _render_analysis(match_id, origin)
+    view_param = _get_query_param_first("view")
+    match_id_param = _get_query_param_first("match_id")
+    if view_param == "analysis" and match_id_param:
+        origin = _get_query_param_first("origin") or "upcoming"
+        _render_analysis(match_id_param, origin)
         return
 
     current_view = st.session_state.get("list_view", "upcoming")
-    view_from_query = query_params.get("view", [None])[0]
-    if view_from_query in {"upcoming", "finished", "storage"}:
-        current_view = view_from_query
+    if view_param in {"upcoming", "finished", "storage"}:
+        current_view = view_param
 
     view_labels = {
         "Proximos partidos": "upcoming",
@@ -431,7 +464,7 @@ def main() -> None:
     current_view = view_labels[sidebar_choice]
     st.session_state["list_view"] = current_view
 
-    st.experimental_set_query_params(view=current_view)
+    _sync_query_params({"view": current_view})
     st.subheader(reverse_labels[current_view])
 
     if current_view == "storage":
