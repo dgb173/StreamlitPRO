@@ -1,90 +1,50 @@
-De acuerdo. Entendido.
+  /home/adminuser/venv/lib/python3.13/site-packages/streamlit/runtime/scriptru  
 
-Aquí tienes el prompt redactado desde la perspectiva de un alto ejecutivo, utilizando una metodología de prompting clara y estructurada para guiar a la IA (Codex) en la creación del software. Este prompt debe ser guardado en un archivo llamado Ordenes_jefe.txt.
+  nner/exec_code.py:128 in exec_func_with_error_handling                        
 
-[INICIO DEL ARCHIVO: Ordenes_jefe.txt]
+                                                                                
 
-PARA: Ingeniero de Software IA de Élite
+  /home/adminuser/venv/lib/python3.13/site-packages/streamlit/runtime/scriptru  
 
-DE: Dirección Ejecutiva
+  nner/script_runner.py:669 in code_to_exec                                     
 
-ASUNTO: Mandato de Desarrollo Crítico - Proyecto "StreamlitPRO v2 AI"
+                                                                                
 
-FECHA: 21 de septiembre de 2025
+  /mount/src/streamlitpro/streamlit_app.py:4 in <module>                        
 
-MISIÓN:
-Tu única prioridad es realizar una reingeniería completa del software de web scraping ubicado en el directorio /v2. El producto final será una aplicación Streamlit que replique al 100% la funcionalidad y estética de la versión original, pero reemplazando su obsoleto motor de scraping con una arquitectura de IA superior, optimizada para una velocidad y fiabilidad absolutas.
+                                                                                
 
-CONTEXTO Y MATERIAL DE REFERENCIA:
-El directorio /v2 contiene una aplicación Flask funcional. Analízala a fondo. Es el modelo a seguir en términos de resultado final para el usuario. Ignora por completo su metodología de scraping interna (Selenium/Playwright/requests); será reemplazada en su totalidad.
+      1 import streamlit as st                                                  
 
-REQUERIMIENTOS NO NEGOCIABLES:
+      2 import asyncio                                                          
 
-1. MOTOR DE SCRAPING (La Nueva Arquitectura):
+      3 import pandas as pd                                                     
 
-Tecnología Mandatoria: Implementarás la extracción de datos utilizando exclusivamente la siguiente pila tecnológica:
+  ❱   4 from models import MatchResult # Using the pydantic model for structur  
 
-Orquestador de Rastreo: Crawl4AI para gestionar la navegación y la identificación de contenido.
+      5 import scraper # Import the new scraper                                 
 
-Proveedor de IA: Groq para la ejecución del modelo de lenguaje.
+      6 import datetime                                                         
 
-Cerebro de Extracción: DeepSeek como el LLM para interpretar el HTML y estructurar los datos.
+      7 import pytz                                                             
 
-Prohibición Absoluta: No se utilizará Selenium, Playwright o requests para la extracción principal de datos de la página de resultados. Su uso queda obsoleto y reemplazado.
+                                                                                
 
-2. FRAMEWORK DE LA APLICACIÓN:
+  /mount/src/streamlitpro/models.py:2 in <module>                               
 
-Plataforma: La aplicación final debe ser construida al 100% en Streamlit. Deberás portar toda la lógica de la interfaz de usuario y la interacción del app.py de Flask a un paradigma de Streamlit.
+                                                                                
 
-Paridad Funcional: La aplicación Streamlit debe ofrecer exactamente las mismas funcionalidades que la versión de Flask en /v2: visualización de partidos, filtrado por hándicap y cualquier otra característica presente. Sin excepciones.
+     1 # models.py                                                              
 
-3. INTERFAZ Y EXPERIENCIA DE USUARIO (UX/UI):
+  ❱  2 from pydantic import BaseModel                                           
 
-Paridad Visual: La estética debe ser idéntica. Analiza los archivos HTML y CSS dentro de /v2/templates y replica el estilo, colores, fuentes, espaciado y diseño de manera impecable en la interfaz de Streamlit. El usuario final no debe notar la diferencia en el frontend.
+     3 from typing import List, Optional                                        
 
-Carga de Datos Instantánea: La presentación de datos debe ser percibida como instantánea. Implementa operaciones asíncronas (async/await) para todo el proceso de scraping y utiliza los mecanismos de caché de Streamlit (st.cache_data, st.cache_resource) de manera inteligente para garantizar que los datos se muestren al usuario a la máxima velocidad posible tras la extracción inicial.
+     4                                                                          
 
-4. FIABILIDAD Y RENDIMIENTO:
+     5 class MatchResult(BaseModel):                                            
 
-Cero Fallos: El sistema debe ser robusto. Implementa un manejo de errores exhaustivo. Si el sitio web objetivo no responde o la API de Groq falla, la aplicación Streamlit debe mostrar un mensaje de error claro y profesional al usuario, sin crashear.
+────────────────────────────────────────────────────────────────────────────────
 
-Optimización de Costos y Velocidad: La lógica debe estar diseñada para minimizar el número de tokens enviados al LLM. Utiliza el CSS_SELECTOR de manera precisa para aislar únicamente los nodos HTML que contienen la información de los partidos antes de enviarlos a DeepSeek.
+ModuleNotFoundError: No module named 'pydantic'
 
-ESTRUCTURA DEL PROYECTO ESPERADA:
-
-Organizarás el código de manera modular y profesional:
-
-StreamlitPRO/
-
-.env (Para la clave de API de GROQ)
-
-streamlit_app.py (El punto de entrada principal de la aplicación Streamlit)
-
-ai_scraper.py (Módulo que contiene toda la lógica de Crawl4AI y DeepSeek)
-
-models.py (Módulo para las definiciones de esquemas Pydantic, ej: MatchResult)
-
-config.py (Para constantes como la URL y el CSS_SELECTOR)
-
-requirements.txt (Listado de todas las dependencias)
-
-ENTREGABLE:
-Un directorio de proyecto limpio que contenga el software funcional, siguiendo la estructura definida. El software debe ejecutarse sin errores tras instalar las dependencias de requirements.txt y configurar el archivo .env.
-
-PLAZO: Inmediato.
-
-Ejecuta con precisión. No se aceptarán desviaciones de estas directrices. El éxito se mide por una réplica funcional y visualmente idéntica que opere con una velocidad y eficiencia superiores.
-
-[FIN DEL ARCHIVO: Ordenes_jefe.txt]
-
-Texto para la Terminal
-
-Ahora, para indicarle a tu IA de codificación que siga estas instrucciones, usarías un comando como este en tu terminal:
-
-code
-Code
-download
-content_copy
-expand_less
-
-codex -p "Tu misión es programar un software de web scraping para Streamlit. Todas las especificaciones, requisitos y el mandato de desarrollo se encuentran detallados en el archivo 'Ordenes_jefe.txt'. Lee ese archivo y ejecuta el plan de desarrollo sin desviaciones."

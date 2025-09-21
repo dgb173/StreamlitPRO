@@ -7,3 +7,4 @@ lxml>=4.9
 selenium>=4.10
 playwright
 pytz
+pydantic
