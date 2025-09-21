@@ -4,9 +4,11 @@ from modules.analisis_reciente import analizar_rendimiento_reciente_con_handicap
 from modules.analisis_rivales import analizar_rivales_comunes, analizar_contra_rival_del_rival
 from modules.funciones_resumen import generar_resumen_rendimiento_reciente
 from modules.funciones_auxiliares import _calcular_estadisticas_contra_rival, _analizar_over_under, _analizar_ah_cubierto, _analizar_desempeno_casa_fuera
+import json
 import time
 import re
 import math
+from pathlib import Path
 from bs4 import BeautifulSoup
 import pandas as pd
 from concurrent.futures import ThreadPoolExecutor
@@ -20,10 +22,103 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 from modules.utils import parse_ah_to_number_of, format_ah_as_decimal_string_of, check_handicap_cover, check_goal_line_cover, get_match_details_from_row_of, extract_final_score_of
+from modules import preview_storage
 
 BASE_URL_OF = "https://live18.nowgoal25.com"
 SELENIUM_TIMEOUT_SECONDS_OF = 10
 PLACEHOLDER_NODATA = "*(No disponible)*"
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+_PREVIEW_FIXTURE_FILE = _REPO_ROOT / "preview_data.json"
+
+
+def _load_fixture_preview() -> dict | None:
+    if not _PREVIEW_FIXTURE_FILE.exists():
+        return None
+    try:
+        with _PREVIEW_FIXTURE_FILE.open('r', encoding='utf-8') as handler:
+            payload = json.load(handler)
+    except Exception as exc:
+        print(f"Advertencia al cargar la vista previa de referencia: {exc}")
+        return None
+    if not isinstance(payload, dict):
+        return None
+    preview_copy = json.loads(json.dumps(payload))
+    preview_copy.setdefault('_cached_preview', {
+        'stored_at': None,
+        'source': 'fixture_file',
+        'payload_type': 'preview',
+    })
+    return preview_copy
+
+
+def _coerce_recent_block(block: object) -> dict | None:
+    if not isinstance(block, dict):
+        return None
+    coerced = {
+        'home': block.get('home') or block.get('title_home_name'),
+        'away': block.get('away') or block.get('title_away_name'),
+        'score': (block.get('score') or block.get('score_line') or '').replace(' : ', ':'),
+        'ah': block.get('ah') or block.get('ah_line') or block.get('handicap'),
+        'ou': block.get('ou') or '-',
+        'stats_rows': block.get('stats_rows') or [],
+        'date': block.get('date'),
+    }
+    return coerced
+
+
+def _convert_analysis_to_preview(payload: object) -> dict | None:
+    if not isinstance(payload, dict):
+        return None
+    recent_full = payload.get('recent_indirect_full')
+    recent_indirect = {
+        'last_home': _coerce_recent_block(recent_full.get('last_home')) if isinstance(recent_full, dict) else None,
+        'last_away': _coerce_recent_block(recent_full.get('last_away')) if isinstance(recent_full, dict) else None,
+        'h2h_col3': None,
+    }
+    if isinstance(recent_full, dict):
+        h2h_col3 = recent_full.get('h2h_col3') or recent_full.get('h2h_general')
+        coerced = _coerce_recent_block(h2h_col3)
+        if coerced:
+            coerced['score_line'] = coerced.get('score') or coerced.get('score_line')
+            recent_indirect['h2h_col3'] = coerced
+    handicap = payload.get('handicap') if isinstance(payload.get('handicap'), dict) else {}
+    preview_payload = {
+        'home_team': payload.get('home_team', ''),
+        'away_team': payload.get('away_team', ''),
+        'recent_form': payload.get('recent_form') if isinstance(payload.get('recent_form'), dict) else {
+            'home': {'wins': 0, 'total': 0},
+            'away': {'wins': 0, 'total': 0},
+        },
+        'recent_indirect': recent_indirect,
+        'handicap': {
+            'ah_line': format_ah_as_decimal_string_of(handicap.get('ah_line', '-') or '-'),
+            'favorite': handicap.get('favorite') or '',
+            'cover_on_last_h2h': (recent_indirect.get('h2h_col3') or {}).get('cover_status')
+                                 or (recent_full.get('h2h_general', {}) if isinstance(recent_full, dict) else {}).get('cover_status')
+                                 or 'DESCONOCIDO',
+        },
+        'dangerous_attacks': payload.get('dangerous_attacks') if isinstance(payload.get('dangerous_attacks'), dict) else {},
+        'favorite_dangerous_attacks': payload.get('favorite_dangerous_attacks'),
+        'h2h_indirect': payload.get('h2h_indirect') if isinstance(payload.get('h2h_indirect'), dict) else {
+            'home_better': 0,
+            'away_better': 0,
+            'draws': 0,
+            'samples': [],
+        },
+        'h2h_stats': payload.get('h2h_stats') if isinstance(payload.get('h2h_stats'), dict) else {
+            'home_wins': 0,
+            'away_wins': 0,
+            'draws': 0,
+        },
+        'match_date': payload.get('match_date'),
+        'match_time': payload.get('match_time'),
+        'match_datetime': payload.get('match_datetime'),
+    }
+    if isinstance(payload.get('_cached_preview'), dict):
+        preview_payload['_cached_preview'] = payload['_cached_preview']
+    elif isinstance(payload.get('_cached_analysis'), dict):
+        preview_payload['_cached_preview'] = payload['_cached_analysis']
+    return preview_payload
 
 def parse_ah_to_number_of(ah_line_str: str):
     if not isinstance(ah_line_str, str): return None
@@ -267,3 +362,40 @@ def generar_analisis_completo_mercado(main_odds, h2h_data, home_name, away_name)
         f"{analisis_general_html}"
         "</div>"
     )
+
+
+def obtener_datos_preview_ligero(match_id: str) -> dict:
+    match_id_str = str(match_id or '').strip()
+    if not match_id_str:
+        return {'error': 'ID de partido inválido.'}
+
+    cached_preview: dict | None = None
+    try:
+        cached_preview = preview_storage.get_preview(match_id_str, payload_type='preview')
+    except Exception as exc:
+        print(f"Advertencia al acceder al almacén de previews (preview) para {match_id_str}: {exc}")
+
+    if isinstance(cached_preview, dict):
+        return cached_preview
+
+    cached_analysis: dict | None = None
+    try:
+        cached_analysis = preview_storage.get_preview(match_id_str, payload_type='analysis')
+    except Exception as exc:
+        print(f"Advertencia al acceder al almacén de previews (analysis) para {match_id_str}: {exc}")
+
+    if isinstance(cached_analysis, dict):
+        converted = _convert_analysis_to_preview(cached_analysis)
+        if isinstance(converted, dict):
+            meta_info = cached_analysis.get('_cached_preview') or cached_analysis.get('_cached_analysis')
+            if isinstance(meta_info, dict):
+                converted.setdefault('_cached_preview', meta_info)
+            return converted
+
+    fixture_payload = _load_fixture_preview()
+    if fixture_payload:
+        return fixture_payload
+
+    return {
+        'error': 'No se pudieron obtener datos de vista previa para el partido especificado.'
+    }

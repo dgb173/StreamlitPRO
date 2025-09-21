@@ -4,7 +4,7 @@ from typing import List, Optional
 
 class MatchResult(BaseModel):
     id: str
-    league: str
+    league: Optional[str] = None
     time: str
     status: str
     home_team: str
