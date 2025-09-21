@@ -44,9 +44,22 @@ st.title("StreamlitPRO v2 AI")
 st.warning("**Atención:** Esta aplicación realiza web scraping en tiempo real y requiere que Google Chrome y ChromeDriver estén instalados y accesibles en el sistema.")
 
 # 4. Data Loading Functions
+def _run_async_task(coro):
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(coro)
+    else:
+        new_loop = asyncio.new_event_loop()
+        try:
+            return new_loop.run_until_complete(coro)
+        finally:
+            new_loop.close()
+
+
 @st.cache_data(ttl=300) # Cache for 5 minutes
-async def load_all_matches():
-    return await scraper.get_all_matches_async()
+def load_all_matches():
+    return _run_async_task(scraper.get_all_matches_async())
 
 @st.cache_data(ttl=600) # Cache analysis for 10 minutes
 def load_analysis(match_id: str):
@@ -55,7 +68,7 @@ def load_analysis(match_id: str):
 # 5. Main App Logic
 with st.spinner("Cargando lista de partidos en tiempo real..."):
     try:
-        all_matches_data = asyncio.run(load_all_matches())
+        all_matches_data = load_all_matches()
         all_matches = [MatchResult(**m) for m in all_matches_data]
     except Exception as e:
         st.error(f"Error fatal al cargar la lista de partidos: {e}")
