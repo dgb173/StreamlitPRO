@@ -1,4 +1,3 @@
-
 import streamlit as st
 import asyncio
 import pandas as pd
@@ -37,7 +36,7 @@ custom_css = """
     .stat-value-away { text-align: right; font-weight: bold; }
     .analisis-mercado { background-color: #f7f7f7; padding: 8px; border-radius: 4px; font-size: 0.8rem; }
 </style>
-"
+"""
 st.markdown(custom_css, unsafe_allow_html=True)
 
 # 3. Main Title and Warning
@@ -64,11 +63,11 @@ def render_stats_table(stats: list[dict]):
     html = "<table class='stat-table'>"
     for stat in stats:
         # The stats from the scraper are already colored HTML
-        html += f"<tr><td class='stat-value-home'>{{stat['home']}}</td><td class='stat-label'>{{stat['label']}}</td><td class='stat-value-away'>{{stat['away']}}</td></tr>"
+        html += f"<tr><td class='stat-value-home'>{stat.get('home', '')}</td><td class='stat-label'>{stat.get('label', '')}</td><td class='stat-value-away'>{stat.get('away', '')}</td></tr>"
     html += "</table>"
     return html
 
-def render_preview(match_id: str):
+def render_preview(match_id: str, home_team: str, away_team: str):
     with st.spinner("Realizando scraping en tiempo real para el análisis... Por favor, espere."):
         analysis = load_analysis(match_id)
 
@@ -76,7 +75,6 @@ def render_preview(match_id: str):
         st.error(f"No se pudo cargar el análisis para el partido {match_id}. Error: {analysis.get('error', 'Desconocido')}")
         return
 
-    # Replicating the structure from Screenshot_2.jpg
     ri = analysis.get("recent_indirect", {})
     ultimo_local = ri.get("last_home")
     ultimo_visitante = ri.get("last_away")
@@ -84,32 +82,42 @@ def render_preview(match_id: str):
 
     st.markdown("<h6>Rendimiento Reciente</h6>", unsafe_allow_html=True)
     col1, col2, col3 = st.columns(3)
+    
     with col1:
         if ultimo_local:
-            st.markdown(f"<div class='preview-card'" \
-                        f"<h6>Último {analysis.get('home_team')} (Casa)</h6>" \
-                        f"<div class='score-line'>{ultimo_local['score']}</div>" \
-                        f"<div class='teams'>{ultimo_local['home']} vs {ultimo_local['away']}</div>" \
-                        f"<div class='date'>{ultimo_local['date']}</div>" \
-                        f"{render_stats_table(ultimo_local['stats_rows'])}" \
-                        f"</div>", unsafe_allow_html=True)
+            card_html = f"""
+            <div class='preview-card'>
+                <h6>Último {home_team} (Casa)</h6>
+                <div class='score-line'>{ultimo_local.get('score', '')}</div>
+                <div class='teams'>{ultimo_local.get('home', '')} vs {ultimo_local.get('away', '')}</div>
+                <div class='date'>{ultimo_local.get('date', '')}</div>
+                {render_stats_table(ultimo_local.get('stats_rows', []))}
+            </div>
+            """
+            st.markdown(card_html, unsafe_allow_html=True)
     with col2:
         if ultimo_visitante:
-            st.markdown(f"<div class='preview-card'" \
-                        f"<h6>Último {analysis.get('away_team')} (Fuera)</h6>" \
-                        f"<div class='score-line'>{ultimo_visitante['score']}</div>" \
-                        f"<div class='teams'>{ultimo_visitante['home']} vs {ultimo_visitante['away']}</div>" \
-                        f"<div class='date'>{ultimo_visitante['date']}</div>" \
-                        f"{render_stats_table(ultimo_visitante['stats_rows'])}" \
-                        f"</div>", unsafe_allow_html=True)
+            card_html = f"""
+            <div class='preview-card'>
+                <h6>Último {away_team} (Fuera)</h6>
+                <div class='score-line'>{ultimo_visitante.get('score', '')}</div>
+                <div class='teams'>{ultimo_visitante.get('home', '')} vs {ultimo_visitante.get('away', '')}</div>
+                <div class='date'>{ultimo_visitante.get('date', '')}</div>
+                {render_stats_table(ultimo_visitante.get('stats_rows', []))}
+            </div>
+            """
+            st.markdown(card_html, unsafe_allow_html=True)
     with col3:
         if h2h_rivales:
-            st.markdown(f"<div class='preview-card'" \
-                        f"<h6>H2H Rivales (Col3)</h6>" \
-                        f"<div class='score-line'>{h2h_rivales['score_line']}</div>" \
-                        f"<div class='date'>{h2h_rivales['date']}</div>" \
-                        f"{render_stats_table(h2h_rivales['stats_rows'])}" \
-                        f"</div>", unsafe_allow_html=True)
+            card_html = f"""
+            <div class='preview-card'>
+                <h6>H2H Rivales (Col3)</h6>
+                <div class='score-line'>{h2h_rivales.get('score_line', '')}</div>
+                <div class='date'>{h2h_rivales.get('date', '')}</div>
+                {render_stats_table(h2h_rivales.get('stats_rows', []))}
+            </div>
+            """
+            st.markdown(card_html, unsafe_allow_html=True)
 
 with tab1:
     st.header("Próximos Partidos")
@@ -118,7 +126,7 @@ with tab1:
         st.warning("No se encontraron partidos.")
     else:
         for match_data in upcoming_matches_data:
-            match = MatchResult(**match_data) # Convert dict to pydantic model
+            match = MatchResult(**match_data)
             with st.expander(f"{match.home_team} vs {match.away_team}"):
                 col1, col2, col3, col4 = st.columns(4)
                 with col1:
@@ -129,7 +137,7 @@ with tab1:
                     st.markdown(f"**Línea de Goles:** <span class='badge odds-badge goal-line'>{match.goal_line if match.goal_line else 'N/A'}</span>", unsafe_allow_html=True)
                 with col4:
                     if st.button("Vista Previa Ligera", key=f"preview_{match.id}"):
-                        render_preview(match.id)
+                        render_preview(match.id, match.home_team, match.away_team)
 
 with tab2:
     st.header("Resultados Finalizados")
@@ -149,4 +157,4 @@ with tab2:
                     st.markdown(f"**Línea de Goles:** <span class='badge odds-badge goal-line'>{match.goal_line if match.goal_line else 'N/A'}</span>", unsafe_allow_html=True)
                 with col4:
                     if st.button("Vista Previa Ligera", key=f"preview_{match.id}"):
-                        render_preview(match.id)
+                        render_preview(match.id, match.home_team, match.away_team)
