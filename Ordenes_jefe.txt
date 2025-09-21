@@ -1,99 +1,90 @@
-Haz todo esto en el directorio de copia de seguridad:
+De acuerdo. Entendido.
 
-Deberas eliminar el apartado **H2H general** de la función del botón del ojo (`<i class="fa-solid fa-eye"></i>`), sigue estos pasos claros:
+Aquí tienes el prompt redactado desde la perspectiva de un alto ejecutivo, utilizando una metodología de prompting clara y estructurada para guiar a la IA (Codex) en la creación del software. Este prompt debe ser guardado en un archivo llamado Ordenes_jefe.txt.
 
----
+[INICIO DEL ARCHIVO: Ordenes_jefe.txt]
 
-### **1. Identifica la función JavaScript del botón**
-El botón con clase `preview-btn` tiene un evento asociado (probablemente un `click`) que muestra la vista previa. Debes encontrar esa función en tu código JavaScript.  
-**Ejemplo de cómo podría verse:**
-```javascript
-document.querySelectorAll('.preview-btn').forEach(btn => {
-    btn.addEventListener('click', function() {
-        // Código que muestra la ventana emergente con datos del partido
-    });
-});
-```
+PARA: Ingeniero de Software IA de Élite
 
----
+DE: Dirección Ejecutiva
 
-### **2. Localiza dónde se carga el contenido del H2H**
-Dentro de la función del botón, busca cómo se obtienen o renderizan los datos del H2H. Puede ser:
-- Una llamada a una API que incluye el H2H.
-- Un elemento HTML oculto que se clona y muestra.
-- Datos hardcodeados en el JavaScript.
+ASUNTO: Mandato de Desarrollo Crítico - Proyecto "StreamlitPRO v2 AI"
 
-**Ejemplo hipotético de llamada a API:**
-```javascript
-fetch(`/api/match/${this.dataset.matchId}`)
-    .then(response => response.json())
-    .then(data => {
-        // Aquí 'data.h2h' contiene los datos del H2H
-        // Elimina esta parte para quitarlo
-    });
-```
+FECHA: 21 de septiembre de 2025
 
----
+MISIÓN:
+Tu única prioridad es realizar una reingeniería completa del software de web scraping ubicado en el directorio /v2. El producto final será una aplicación Streamlit que replique al 100% la funcionalidad y estética de la versión original, pero reemplazando su obsoleto motor de scraping con una arquitectura de IA superior, optimizada para una velocidad y fiabilidad absolutas.
 
-### **3. Modifica el código para excluir el H2H**
-**Opción A: Si el H2H se obtiene de una API:**
-- **Elimina el campo `h2h`** de la respuesta de la API antes de mostrarlo.  
-  **Ejemplo:**
-  ```javascript
-  fetch(`/api/match/${this.dataset.matchId}`)
-      .then(response => response.json())
-      .then(data => {
-          // Eliminar el H2H del objeto de datos
-          delete data.h2h;
-          // Renderizar el resto de datos...
-      });
-  ```
+CONTEXTO Y MATERIAL DE REFERENCIA:
+El directorio /v2 contiene una aplicación Flask funcional. Analízala a fondo. Es el modelo a seguir en términos de resultado final para el usuario. Ignora por completo su metodología de scraping interna (Selenium/Playwright/requests); será reemplazada en su totalidad.
 
-**Opción B: Si el H2H está en HTML:**
-- **Quita el elemento HTML correspondiente** del template que se muestra en la vista previa.  
-  **Ejemplo:**
-  ```html
-  <!-- Elimina este div si está presente -->
-  <div class="h2h-section">
-      <h3>H2H Riales (Col3)</h3>
-      <p>2 - 2</p>
-      <!-- Otros datos de H2H -->
-  </div>
-  ```
+REQUERIMIENTOS NO NEGOCIABLES:
 
----
+1. MOTOR DE SCRAPING (La Nueva Arquitectura):
 
-### **4. Verifica en la interfaz**
-Después de modificar el código:
-1. Haz clic en el botón del ojo (`<i class="fa-solid fa-eye"></i>`) en la página.
-2. Confirma que la ventana de vista previa **no muestra el apartado H2H**.
+Tecnología Mandatoria: Implementarás la extracción de datos utilizando exclusivamente la siguiente pila tecnológica:
 
----
+Orquestador de Rastreo: Crawl4AI para gestionar la navegación y la identificación de contenido.
 
-### **5. Ejemplo final del HTML modificado**
-Si el H2H estaba en HTML, tu tabla quedaría así:
-```html
-<td class="align-middle">
-    <span class="preview-btn" data-match-id="2826192" title="Ver vista previa rápida">
-        <i class="fa-solid fa-eye"></i>
-    </span>
-</td>
+Proveedor de IA: Groq para la ejecución del modelo de lenguaje.
 
-<!-- Resto de la fila sin el apartado H2H -->
-<div class="match-preview">
-    <!-- Datos del partido, pero SIN H2H -->
-    <div class="team-stats">
-        <!-- Estadísticas de los equipos -->
-    </div>
-    <div class="market-analysis">
-        <!-- Análisis de mercado -->
-    </div>
-</div>
-```
+Cerebro de Extracción: DeepSeek como el LLM para interpretar el HTML y estructurar los datos.
 
----
+Prohibición Absoluta: No se utilizará Selenium, Playwright o requests para la extracción principal de datos de la página de resultados. Su uso queda obsoleto y reemplazado.
 
-### **Consejo adicional:**
-Si usas un framework como React, Vue o Angular, asegúrate de que el componente de vista previa **no renderiza el H2H** al hacer `return ()`.
+2. FRAMEWORK DE LA APLICACIÓN:
 
-¡Listo! Con estos pasos, el botón del ojo mostrará la vista previa sin el apartado H2H. 🛠️👁️
+Plataforma: La aplicación final debe ser construida al 100% en Streamlit. Deberás portar toda la lógica de la interfaz de usuario y la interacción del app.py de Flask a un paradigma de Streamlit.
+
+Paridad Funcional: La aplicación Streamlit debe ofrecer exactamente las mismas funcionalidades que la versión de Flask en /v2: visualización de partidos, filtrado por hándicap y cualquier otra característica presente. Sin excepciones.
+
+3. INTERFAZ Y EXPERIENCIA DE USUARIO (UX/UI):
+
+Paridad Visual: La estética debe ser idéntica. Analiza los archivos HTML y CSS dentro de /v2/templates y replica el estilo, colores, fuentes, espaciado y diseño de manera impecable en la interfaz de Streamlit. El usuario final no debe notar la diferencia en el frontend.
+
+Carga de Datos Instantánea: La presentación de datos debe ser percibida como instantánea. Implementa operaciones asíncronas (async/await) para todo el proceso de scraping y utiliza los mecanismos de caché de Streamlit (st.cache_data, st.cache_resource) de manera inteligente para garantizar que los datos se muestren al usuario a la máxima velocidad posible tras la extracción inicial.
+
+4. FIABILIDAD Y RENDIMIENTO:
+
+Cero Fallos: El sistema debe ser robusto. Implementa un manejo de errores exhaustivo. Si el sitio web objetivo no responde o la API de Groq falla, la aplicación Streamlit debe mostrar un mensaje de error claro y profesional al usuario, sin crashear.
+
+Optimización de Costos y Velocidad: La lógica debe estar diseñada para minimizar el número de tokens enviados al LLM. Utiliza el CSS_SELECTOR de manera precisa para aislar únicamente los nodos HTML que contienen la información de los partidos antes de enviarlos a DeepSeek.
+
+ESTRUCTURA DEL PROYECTO ESPERADA:
+
+Organizarás el código de manera modular y profesional:
+
+StreamlitPRO/
+
+.env (Para la clave de API de GROQ)
+
+streamlit_app.py (El punto de entrada principal de la aplicación Streamlit)
+
+ai_scraper.py (Módulo que contiene toda la lógica de Crawl4AI y DeepSeek)
+
+models.py (Módulo para las definiciones de esquemas Pydantic, ej: MatchResult)
+
+config.py (Para constantes como la URL y el CSS_SELECTOR)
+
+requirements.txt (Listado de todas las dependencias)
+
+ENTREGABLE:
+Un directorio de proyecto limpio que contenga el software funcional, siguiendo la estructura definida. El software debe ejecutarse sin errores tras instalar las dependencias de requirements.txt y configurar el archivo .env.
+
+PLAZO: Inmediato.
+
+Ejecuta con precisión. No se aceptarán desviaciones de estas directrices. El éxito se mide por una réplica funcional y visualmente idéntica que opere con una velocidad y eficiencia superiores.
+
+[FIN DEL ARCHIVO: Ordenes_jefe.txt]
+
+Texto para la Terminal
+
+Ahora, para indicarle a tu IA de codificación que siga estas instrucciones, usarías un comando como este en tu terminal:
+
+code
+Code
+download
+content_copy
+expand_less
+
+codex -p "Tu misión es programar un software de web scraping para Streamlit. Todas las especificaciones, requisitos y el mandato de desarrollo se encuentran detallados en el archivo 'Ordenes_jefe.txt'. Lee ese archivo y ejecuta el plan de desarrollo sin desviaciones."
