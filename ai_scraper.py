@@ -44,7 +44,7 @@ async def scrape_matches() -> list[MatchResult]:
     # Datos mockeados que simulan la respuesta del LLM
     # En la implementación final, estos datos provendrían del análisis del LLM
     mock_data = [
-        MatchResult(id='1', league="Primera División", time="85'", status="En vivo", home_team="Equipo A", score="2-1", away_team="Equipo B", handicap="0.5", goal_line="2.5"),
+        MatchResult(id='1', league="Primera División", time="22:00", status="Próximo", home_team="Equipo A", score="-", away_team="Equipo B", handicap="0.5", goal_line="2.5"),
         MatchResult(id='2', league="Premier League", time="FT", status="Finalizado", home_team="Equipo C", score="0-0", away_team="Equipo D", handicap="-1.0", goal_line="2.0"),
         MatchResult(id='3', league="Bundesliga", time="HT", status="Descanso", home_team="Equipo E", score="1-0", away_team="Equipo F", handicap="0.0", goal_line="2.25"),
         MatchResult(id='4', league="Serie A", time="FT", status="Finalizado", home_team="Equipo G", score="3-1", away_team="Equipo H", handicap="-1.5", goal_line="3.0"),
@@ -56,6 +56,100 @@ async def scrape_matches() -> list[MatchResult]:
     
     print("Scraping finalizado. Datos extraídos exitosamente.")
     return mock_data
+
+def get_match_analysis(match_id: str) -> dict:
+    """
+    Devuelve una estructura de datos mock para la vista de análisis detallado.
+    """
+    # Datos basados en la Screenshot_2.jpg
+    return {
+        "ultimo_local": {
+            "score": "2 - 2",
+            "date": "18-09-2025",
+            "teams": "Guadalupe FC vs Municipal Liberia",
+            "ah": "-0.25",
+            "estado": "Indeterminado",
+            "stats": [
+                {"label": "Tiros", "home": 9, "away": 13},
+                {"label": "Tiros a Puerta", "home": 5, "away": 6},
+                {"label": "Ataques", "home": 110, "away": 128},
+                {"label": "Ataques Peligrosos", "home": 43, "away": 60},
+                {"label": "Red Cards", "home": 0, "away": 0},
+            ]
+        },
+        "ultimo_visitante": {
+            "score": "2 - 1",
+            "date": "07-09-2025",
+            "teams": "Perez Zeledon vs Alajuelense",
+            "ah": "0.5",
+            "estado": "NO CUBIERTO",
+            "stats": [
+                {"label": "Tiros", "home": 18, "away": 7},
+                {"label": "Tiros a Puerta", "home": 10, "away": 2},
+                {"label": "Ataques", "home": 104, "away": 97},
+                {"label": "Ataques Peligrosos", "home": 63, "away": 42},
+                {"label": "Red Cards", "home": 1, "away": 1},
+            ]
+        },
+        "h2h_rivales": {
+            "score": "2 - 2",
+            "date": "03-08-2025",
+            "teams": "Municipal Liberia vs Perez Zeledon",
+            "ah": "0.75",
+            "estado": "Indeterminado",
+            "stats": [
+                {"label": "Tiros", "home": 17, "away": 13},
+                {"label": "Tiros a Puerta", "home": 6, "away": 4},
+                {"label": "Ataques", "home": 86, "away": 44},
+                {"label": "Ataques Peligrosos", "home": 1, "away": 0},
+                {"label": "Red Cards", "home": 0, "away": 0},
+            ]
+        },
+        "analisis_mercado": {
+            "estadio": {
+                "resultado": "3:2",
+                "mov_linea": "1.25 -> 0.75",
+                "cobertura": "NO CUBIERTO"
+            },
+            "reciente": {
+                "resultado": "1:0",
+                "mov_linea": "1.25 -> 0.75",
+                "cobertura": "CUBIERTO"
+            }
+        },
+        "comparativas_indirectas": {
+            "local": {
+                "teams": "Guadalupe FC vs. Últ. Rival de Alajuelense",
+                "score": "4 - 0",
+                "rivals": "Perez Zeledon vs Guadalupe FC",
+                "ah": "0.25",
+                "localia": "A",
+                "estado": "Indeterminado",
+                "analisis": "Contra este rival, el resultado para Guadalupe FC sería indeterminado",
+                "stats": [
+                    {"label": "Tiros", "home": 17, "away": 10},
+                    {"label": "Tiros a Puerta", "home": 11, "away": 3},
+                    {"label": "Ataques", "home": 132, "away": 100},
+                    {"label": "Ataques Peligrosos", "home": 79, "away": 48},
+                ]
+            },
+            "visitante": {
+                "teams": "Alajuelense vs. Últ. Rival de Guadalupe FC",
+                "score": "2 - 0",
+                "rivals": "Alajuelense vs Municipal Liberia",
+                "ah": "0.75",
+                "localia": "H",
+                "estado": "CUBIERTO",
+                "analisis": "Contra este rival, Alajuelense habría cubierto el handicap",
+                "stats": [
+                    {"label": "Tiros", "home": 17, "away": 11},
+                    {"label": "Tiros a Puerta", "home": 6, "away": 4},
+                    {"label": "Ataques", "home": 114, "away": 112},
+                    {"label": "Ataques Peligrosos", "home": 53, "away": 49},
+                ]
+            }
+        }
+    }
 
 if __name__ == '__main__':
     # Para pruebas directas del scraper
