@@ -10,41 +10,53 @@
 
                                                                                 
 
-  /mount/src/streamlitpro/streamlit_app.py:4 in <module>                        
+  /mount/src/streamlitpro/streamlit_app.py:5 in <module>                        
 
                                                                                 
-
-      1 import streamlit as st                                                  
 
       2 import asyncio                                                          
 
       3 import pandas as pd                                                     
 
-  ❱   4 from models import MatchResult # Using the pydantic model for structur  
+      4 from models import MatchResult # Using the pydantic model for structur  
 
-      5 import scraper # Import the new scraper                                 
+  ❱   5 import scraper # Import the new scraper                                 
 
       6 import datetime                                                         
 
       7 import pytz                                                             
 
-                                                                                
-
-  /mount/src/streamlitpro/models.py:2 in <module>                               
+      8                                                                         
 
                                                                                 
 
-     1 # models.py                                                              
+  /mount/src/streamlitpro/scraper.py:3 in <module>                              
 
-  ❱  2 from pydantic import BaseModel                                           
+                                                                                
 
-     3 from typing import List, Optional                                        
+     1 # scraper.py                                                             
 
-     4                                                                          
+     2 import asyncio                                                           
 
-     5 class MatchResult(BaseModel):                                            
+  ❱  3 from modules.estudio_scraper import obtener_datos_preview_ligero         
+
+     4 from modules.estudio_scraper import obtener_datos_completos_partido # T  
+
+     5                                                                          
+
+     6 # This is a placeholder for the actual main page scraping logic from th  
 
 ────────────────────────────────────────────────────────────────────────────────
 
-ModuleNotFoundError: No module named 'pydantic'
+────────────────────────────────────────────────────────────────────────────────
+
+   /mount/src/streamlitpro/modules/estudio_scraper.py:263                       
+
+      return f'''                                                               
+
+             ▲                                                                  
+
+────────────────────────────────────────────────────────────────────────────────
+
+SyntaxError: unterminated triple-quoted f-string literal (detected at line 264)
 

@@ -1,25 +1,147 @@
 # scraper.py
 import asyncio
+import datetime
+import re
+import threading
+import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+from bs4 import BeautifulSoup
+from playwright.async_api import async_playwright
+
 from modules.estudio_scraper import obtener_datos_preview_ligero
-from modules.estudio_scraper import obtener_datos_completos_partido # This is a placeholder for the actual main page scraping logic
 
-# This is a placeholder for the actual main page scraping logic from the Flask app.
-# The original Flask app had complex logic for this in the app.py itself.
-# For now, we will return a mock list of matches, but the preview will be real.
+# --- Logic ported from Version_buena/app.py ---
 
-def get_upcoming_matches():
-    # In a real implementation, this would call the logic from the old app.py's 
-    # get_main_page_matches_async function.
-    # For now, returning a static list to allow the UI to be built.
-    return [
-        {"id": "2433945", "time": "22:00", "home_team": "CA Atlanta", "away_team": "Almirante Brown", "handicap": "0.25", "goal_line": "2.0"},
-        {"id": "2433946", "time": "23:00", "home_team": "Club Atletico Mitre", "away_team": "Gimnasia y Tiro", "handicap": "0.5", "goal_line": "2.25"},
-    ]
+URL_NOWGOAL = "https://live20.nowgoal25.com/"
+REQUEST_TIMEOUT_SECONDS = 12
+_REQUEST_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+    "Accept-Language": "es-ES,es;q=0.9,en;q=0.8",
+    "Connection": "keep-alive",
+    "Referer": URL_NOWGOAL,
+}
 
-def get_finished_matches():
-    return [
-        {"id": "2433947", "time": "FT", "home_team": "Racing Club", "away_team": "Godoy Cruz", "handicap": "-0.75", "goal_line": "2.5", "score": "1-0"},
-    ]
+_requests_session = None
+_requests_session_lock = threading.Lock()
+_requests_fetch_lock = threading.Lock()
+
+def _build_nowgoal_url(path: str | None = None) -> str:
+    if not path:
+        return URL_NOWGOAL
+    base = URL_NOWGOAL.rstrip('/')
+    suffix = path.lstrip('/')
+    return f"{base}/{suffix}"
+
+def _get_shared_requests_session():
+    global _requests_session
+    with _requests_session_lock:
+        if _requests_session is None:
+            session = requests.Session()
+            retries = Retry(total=3, backoff_factor=0.4, status_forcelist=[500, 502, 503, 504])
+            adapter = HTTPAdapter(max_retries=retries)
+            session.mount("https://", adapter)
+            session.mount("http://", adapter)
+            session.headers.update(_REQUEST_HEADERS)
+            _requests_session = session
+        return _requests_session
+
+def _fetch_nowgoal_html_sync(url: str) -> str | None:
+    session = _get_shared_requests_session()
+    try:
+        with _requests_fetch_lock:
+            response = session.get(url, timeout=REQUEST_TIMEOUT_SECONDS)
+        response.raise_for_status()
+        return response.text
+    except Exception as exc:
+        print(f"Error al obtener {url} con requests: {exc}")
+        return None
+
+async def _fetch_nowgoal_html(path: str | None = None, filter_state: int | None = None, requests_first: bool = True) -> str | None:
+    target_url = _build_nowgoal_url(path)
+    html_content = None
+
+    if requests_first:
+        try:
+            html_content = await asyncio.to_thread(_fetch_nowgoal_html_sync, target_url)
+        except Exception as exc:
+            print(f"Error asincronico al lanzar la carga con requests ({target_url}): {exc}")
+            html_content = None
+
+    if html_content:
+        return html_content
+
+    try:
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True)
+            page = await browser.new_page()
+            try:
+                await page.goto(target_url, wait_until="domcontentloaded", timeout=20000)
+                await page.wait_for_timeout(4000)
+                if filter_state is not None:
+                    try:
+                        await page.evaluate("(state) => { if (typeof HideByState === 'function') { HideByState(state); } }", filter_state)
+                        await page.wait_for_timeout(1500)
+                    except Exception as eval_err:
+                        print(f"Advertencia al aplicar HideByState({filter_state}) en {target_url}: {eval_err}")
+                return await page.content()
+            finally:
+                await browser.close()
+    except Exception as browser_exc:
+        print(f"Error al obtener la pagina con Playwright ({target_url}): {browser_exc}")
+    return None
+
+def parse_main_page_matches(html_content):
+    soup = BeautifulSoup(html_content, 'html.parser')
+    match_rows = soup.find_all('tr', id=lambda x: x and x.startswith('tr1_'))
+    all_matches = []
+
+    for row in match_rows:
+        match_id = row.get('id', '').replace('tr1_', '')
+        if not match_id: continue
+
+        state = row.get('state')
+        status_text = "Próximo"
+        if state == "1": status_text = "En vivo"
+        elif state == "-1": status_text = "Finalizado"
+        elif state is not None: status_text = f"En vivo ({state})
+
+        time_cell = row.find('td', {'name': 'timeData'})
+        time_text = time_cell.text.strip() if time_cell else ""
+
+        home_team_tag = row.find('a', {'id': f'team1_{match_id}'})
+        away_team_tag = row.find('a', {'id': f'team2_{match_id}'})
+        
+        score_cell = row.find_all('td')[6]
+        score_text = "-"
+        if score_cell:
+            b_tag = score_cell.find('b')
+            if b_tag:
+                score_text = b_tag.text.strip()
+
+        odds_data = row.get('odds', '').split(',')
+        handicap = odds_data[2] if len(odds_data) > 2 else "N/A"
+        goal_line = odds_data[10] if len(odds_data) > 10 else "N/A"
+
+        all_matches.append({
+            "id": match_id,
+            "time": time_text,
+            "status": status_text,
+            "home_team": home_team_tag.text.strip() if home_team_tag else "N/A",
+            "away_team": away_team_tag.text.strip() if away_team_tag else "N/A",
+            "score": score_text,
+            "handicap": handicap,
+            "goal_line": goal_line
+        })
+
+    return all_matches
+
+async def get_all_matches_async():
+    html_content = await _fetch_nowgoal_html(filter_state=0) # 0 for all matches
+    if not html_content:
+        return []
+    return parse_main_page_matches(html_content)
 
 def get_match_preview_data(match_id: str):
     """

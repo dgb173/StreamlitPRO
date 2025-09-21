@@ -260,5 +260,10 @@ def generar_analisis_completo_mercado(main_odds, h2h_data, home_name, away_name)
             f"  <ul style='margin: 5px 0 0 20px; padding-left: 0;'>{sintesis_ah_general}{sintesis_goles_general}</ul>"
             f"</div>"
         )
-    return f'''
-    <div style=
+    return (
+        '<div style="border-left: 4px solid #1E90FF; padding: 12px 15px; margin-top: 15px; background-color: #f0f2f6; border-radius: 5px; font-size: 0.95em;">'
+        f"{titulo_html}"
+        f"{analisis_estadio_html}"
+        f"{analisis_general_html}"
+        "</div>"
+    )

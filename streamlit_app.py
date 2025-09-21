@@ -1,8 +1,9 @@
+
 import streamlit as st
 import asyncio
 import pandas as pd
-from models import MatchResult # Using the pydantic model for structure
-import scraper # Import the new scraper
+from models import MatchResult
+import scraper
 import datetime
 import pytz
 
@@ -34,7 +35,6 @@ custom_css = """
     .stat-label { text-align: center; color: #666; }
     .stat-value-home { text-align: left; font-weight: bold; }
     .stat-value-away { text-align: right; font-weight: bold; }
-    .analisis-mercado { background-color: #f7f7f7; padding: 8px; border-radius: 4px; font-size: 0.8rem; }
 </style>
 """
 st.markdown(custom_css, unsafe_allow_html=True)
@@ -45,34 +45,60 @@ st.warning("**Atención:** Esta aplicación realiza web scraping en tiempo real 
 
 # 4. Data Loading Functions
 @st.cache_data(ttl=300) # Cache for 5 minutes
-def load_upcoming_matches():
-    return scraper.get_upcoming_matches()
-
-@st.cache_data(ttl=300)
-def load_finished_matches():
-    return scraper.get_finished_matches()
+async def load_all_matches():
+    return await scraper.get_all_matches_async()
 
 @st.cache_data(ttl=600) # Cache analysis for 10 minutes
 def load_analysis(match_id: str):
     return scraper.get_match_preview_data(match_id)
 
-# 5. UI Rendering
+# 5. Main App Logic
+with st.spinner("Cargando lista de partidos en tiempo real..."):
+    try:
+        all_matches_data = asyncio.run(load_all_matches())
+        all_matches = [MatchResult(**m) for m in all_matches_data]
+    except Exception as e:
+        st.error(f"Error fatal al cargar la lista de partidos: {e}")
+        all_matches = []
+
+# Filter matches
+SPAIN_TZ = pytz.timezone('Europe/Madrid')
+now_spain = datetime.datetime.now(SPAIN_TZ)
+
+upcoming_matches = []
+finished_matches = []
+
+for m in all_matches:
+    if m.status == "Finalizado":
+        finished_matches.append(m)
+    elif m.status == "Próximo":
+        try:
+            match_time = datetime.datetime.strptime(m.time, '%H:%M').time()
+            match_datetime = now_spain.replace(hour=match_time.hour, minute=match_time.minute, second=0, microsecond=0)
+            if match_datetime < now_spain:
+                match_datetime += datetime.timedelta(days=1)
+            upcoming_matches.append((m, match_datetime))
+        except ValueError:
+            continue
+
+upcoming_matches.sort(key=lambda x: x[1])
+
+# 6. UI Rendering
 tab1, tab2 = st.tabs(["Próximos Partidos", "Resultados Finalizados"])
 
 def render_stats_table(stats: list[dict]):
     html = "<table class='stat-table'>"
     for stat in stats:
-        # The stats from the scraper are already colored HTML
         html += f"<tr><td class='stat-value-home'>{stat.get('home', '')}</td><td class='stat-label'>{stat.get('label', '')}</td><td class='stat-value-away'>{stat.get('away', '')}</td></tr>"
     html += "</table>"
     return html
 
 def render_preview(match_id: str, home_team: str, away_team: str):
-    with st.spinner("Realizando scraping en tiempo real para el análisis... Por favor, espere."):
+    with st.spinner(f"Realizando scraping para el análisis de {home_team} vs {away_team}..."):
         analysis = load_analysis(match_id)
 
     if not analysis or analysis.get("error"):
-        st.error(f"No se pudo cargar el análisis para el partido {match_id}. Error: {analysis.get('error', 'Desconocido')}")
+        st.error(f"No se pudo cargar el análisis. Error: {analysis.get('error', 'Desconocido')}")
         return
 
     ri = analysis.get("recent_indirect", {})
@@ -82,52 +108,24 @@ def render_preview(match_id: str, home_team: str, away_team: str):
 
     st.markdown("<h6>Rendimiento Reciente</h6>", unsafe_allow_html=True)
     col1, col2, col3 = st.columns(3)
-    
     with col1:
         if ultimo_local:
-            card_html = f"""
-            <div class='preview-card'>
-                <h6>Último {home_team} (Casa)</h6>
-                <div class='score-line'>{ultimo_local.get('score', '')}</div>
-                <div class='teams'>{ultimo_local.get('home', '')} vs {ultimo_local.get('away', '')}</div>
-                <div class='date'>{ultimo_local.get('date', '')}</div>
-                {render_stats_table(ultimo_local.get('stats_rows', []))}
-            </div>
-            """
-            st.markdown(card_html, unsafe_allow_html=True)
+            st.markdown(f"<div class='preview-card'><h6>Último {home_team} (Casa)</h6><div class='score-line'>{ultimo_local.get('score', '')}</div><div class='teams'>{ultimo_local.get('home', '')} vs {ultimo_local.get('away', '')}</div><div class='date'>{ultimo_local.get('date', '')}</div>{render_stats_table(ultimo_local.get('stats_rows', []))}</div>", unsafe_allow_html=True)
     with col2:
         if ultimo_visitante:
-            card_html = f"""
-            <div class='preview-card'>
-                <h6>Último {away_team} (Fuera)</h6>
-                <div class='score-line'>{ultimo_visitante.get('score', '')}</div>
-                <div class='teams'>{ultimo_visitante.get('home', '')} vs {ultimo_visitante.get('away', '')}</div>
-                <div class='date'>{ultimo_visitante.get('date', '')}</div>
-                {render_stats_table(ultimo_visitante.get('stats_rows', []))}
-            </div>
-            """
-            st.markdown(card_html, unsafe_allow_html=True)
+            st.markdown(f"<div class='preview-card'><h6>Último {away_team} (Fuera)</h6><div class='score-line'>{ultimo_visitante.get('score', '')}</div><div class='teams'>{ultimo_visitante.get('home', '')} vs {ultimo_visitante.get('away', '')}</div><div class='date'>{ultimo_visitante.get('date', '')}</div>{render_stats_table(ultimo_visitante.get('stats_rows', []))}</div>", unsafe_allow_html=True)
     with col3:
         if h2h_rivales:
-            card_html = f"""
-            <div class='preview-card'>
-                <h6>H2H Rivales (Col3)</h6>
-                <div class='score-line'>{h2h_rivales.get('score_line', '')}</div>
-                <div class='date'>{h2h_rivales.get('date', '')}</div>
-                {render_stats_table(h2h_rivales.get('stats_rows', []))}
-            </div>
-            """
-            st.markdown(card_html, unsafe_allow_html=True)
+            st.markdown(f"<div class='preview-card'><h6>H2H Rivales (Col3)</h6><div class='score-line'>{h2h_rivales.get('score_line', '')}</div><div class='date'>{h2h_rivales.get('date', '')}</div>{render_stats_table(h2h_rivales.get('stats_rows', []))}</div>", unsafe_allow_html=True)
 
 with tab1:
     st.header("Próximos Partidos")
-    upcoming_matches_data = load_upcoming_matches()
-    if not upcoming_matches_data:
-        st.warning("No se encontraron partidos.")
+    if not upcoming_matches:
+        st.warning("No se encontraron partidos próximos.")
     else:
-        for match_data in upcoming_matches_data:
-            match = MatchResult(**match_data)
+        for match, _ in upcoming_matches:
             with st.expander(f"{match.home_team} vs {match.away_team}"):
+                # UI for each match
                 col1, col2, col3, col4 = st.columns(4)
                 with col1:
                     st.write(f"**Hora:** {match.time}")
@@ -141,13 +139,12 @@ with tab1:
 
 with tab2:
     st.header("Resultados Finalizados")
-    finished_matches_data = load_finished_matches()
-    if not finished_matches_data:
-        st.warning("No se encontraron partidos.")
+    if not finished_matches:
+        st.warning("No se encontraron partidos finalizados.")
     else:
-        for match_data in finished_matches_data:
-            match = MatchResult(**match_data)
+        for match in finished_matches:
             with st.expander(f"{match.home_team} vs {match.away_team} - {match.score}"):
+                # UI for each match
                 col1, col2, col3, col4 = st.columns(4)
                 with col1:
                     st.write(f"**Hora:** {match.time}")
