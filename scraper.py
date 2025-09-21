@@ -105,7 +105,7 @@ def parse_main_page_matches(html_content):
         status_text = "Próximo"
         if state == "1": status_text = "En vivo"
         elif state == "-1": status_text = "Finalizado"
-        elif state is not None: status_text = f"En vivo ({state})
+        elif state is not None: status_text = f"En vivo ({state})"
 
         time_cell = row.find('td', {'name': 'timeData'})
         time_text = time_cell.text.strip() if time_cell else ""
@@ -138,10 +138,14 @@ def parse_main_page_matches(html_content):
     return all_matches
 
 async def get_all_matches_async():
-    html_content = await _fetch_nowgoal_html(filter_state=0) # 0 for all matches
-    if not html_content:
+    try:
+        html_content = await _fetch_nowgoal_html(filter_state=0) # 0 for all matches
+        if not html_content:
+            return []
+        return parse_main_page_matches(html_content)
+    except Exception as e:
+        print(f"Error in get_all_matches_async: {e}")
         return []
-    return parse_main_page_matches(html_content)
 
 def get_match_preview_data(match_id: str):
     """

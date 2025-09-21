@@ -1,3 +1,10 @@
+[04:58:42] 📦 Processed dependencies!
+
+
+
+
+────────────────────── Traceback (most recent call last) ───────────────────────
+
   /home/adminuser/venv/lib/python3.13/site-packages/streamlit/runtime/scriptru  
 
   nner/exec_code.py:128 in exec_func_with_error_handling                        
@@ -10,53 +17,40 @@
 
                                                                                 
 
-  /mount/src/streamlitpro/streamlit_app.py:5 in <module>                        
+  /mount/src/streamlitpro/streamlit_app.py:6 in <module>                        
 
                                                                                 
 
-      2 import asyncio                                                          
+      3 import asyncio                                                          
 
-      3 import pandas as pd                                                     
+      4 import pandas as pd                                                     
 
-      4 from models import MatchResult # Using the pydantic model for structur  
+      5 from models import MatchResult                                          
 
-  ❱   5 import scraper # Import the new scraper                                 
+  ❱   6 import scraper                                                          
 
-      6 import datetime                                                         
+      7 import datetime                                                         
 
-      7 import pytz                                                             
+      8 import pytz                                                             
 
-      8                                                                         
-
-                                                                                
-
-  /mount/src/streamlitpro/scraper.py:3 in <module>                              
-
-                                                                                
-
-     1 # scraper.py                                                             
-
-     2 import asyncio                                                           
-
-  ❱  3 from modules.estudio_scraper import obtener_datos_preview_ligero         
-
-     4 from modules.estudio_scraper import obtener_datos_completos_partido # T  
-
-     5                                                                          
-
-     6 # This is a placeholder for the actual main page scraping logic from th  
+      9                                                                         
 
 ────────────────────────────────────────────────────────────────────────────────
 
 ────────────────────────────────────────────────────────────────────────────────
 
-   /mount/src/streamlitpro/modules/estudio_scraper.py:263                       
+   /mount/src/streamlitpro/scraper.py:108                                       
 
-      return f'''                                                               
+          elif state is not None: status_text = f"En vivo ({state})             
 
-             ▲                                                                  
+                                                ▲                               
 
 ────────────────────────────────────────────────────────────────────────────────
 
-SyntaxError: unterminated triple-quoted f-string literal (detected at line 264)
+SyntaxError: unterminated f-string literal (detected at line 108)
 
+[05:02:49] ❗️ We have encountered an unexpected problem. If this issue persists, please contact support
+SyntaxError: This app has encountered an error. The original error message is redacted to prevent data leaks. Full error details have been recorded in the logs (if you're on Streamlit Cloud, click on 'Manage app' in the lower right of your app).
+Traceback:
+File "/mount/src/streamlitpro/streamlit_app.py", line 6, in <module>
+    import scraper
